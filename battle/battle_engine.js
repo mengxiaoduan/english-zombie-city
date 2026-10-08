@@ -1,51 +1,52 @@
-/* 丧尸英语城 - M1 战斗核心 + 演出式波次遭遇
- * 关卡设计依据（The Level Design Book / Schell 兴趣曲线 / 快打旋风式清版节奏）：
- *   - 街道 = 探索拍(安全) 与 遭遇拍(战斗锁定) 交替 → 兴趣曲线
- *   - 每场遭遇是"预告(入场标记)→冲突→结算(肃清横幅+金币)"的小故事
- *   - 敌人小组制(2~3只)梯度混编：教学→提速→坦克+背袭，不做无脑刷怪
- * 打击感：hitstop 冻帧 / 受击闪白 / 击退 / 伤害数字 / 连击 / 屏震 / WebAudio 音效
+/* 丧尸英语城 - 战斗引擎（M1 遭遇波次 + M2/M3 施法整合 + 无尽街区）
+ * 引擎向施法模块暴露：zombies/hero/locked/toast/banner/spellStrike/micState
  */
 window.ZCITY = window.ZCITY || {};
 (function () {
   'use strict';
   var A = ZCITY.Assets;
+  var SP = ZCITY.Spells;
 
-  /* ---------- 场景 ---------- */
+  /* ---------- 街区模板（无尽递进） ---------- */
+  var BLOCK_NAMES = ['死亡大道', '霓虹巷', '地铁废墟', '医院外墙', '码头栈桥'];
+  function makeZones(block) {
+    var ex = block - 1;                     // 递进强度
+    var z = [
+      { x: 360,  waves: [[['A', 'R', 0.6], ['A', 'R', 2.0]]] },
+      { x: 800,  waves: [[['A', 'R', 0.6], ['B', 'R', 1.6], ['A', 'R', 2.8]]] },
+      { x: 1250, waves: [[['A', 'R', 0.6], ['A', 'R', 1.6]],
+                         [['B', 'R', 0.5], ['C', 'R', 1.2], ['B', 'L', 2.6]]] }
+    ];
+    if (ex > 0) {
+      for (var i = 0; i < ex && i < 4; i++) {
+        z[0].waves[0].push(['A', 'R', 3.2 + i * 0.9]);
+        z[1].waves[0].push([i % 2 ? 'B' : 'A', 'R', 3.6 + i * 0.9]);
+        z[2].waves[1].push([i % 2 ? 'C' : 'B', i > 1 ? 'L' : 'R', 3.4 + i * 1.0]);
+      }
+    }
+    return z;
+  }
+
   var SCENES = {
     street: {
-      id: 'street', name: '死亡大道', worldW: 1700, indoor: false,
-      spawn: { x: 140 }, doors: [
-        { x: 1560, label: '进入便利店', to: 'store', backX: 1500, w: 58 }
-      ]
+      id: 'street', name: '第1街区 · 死亡大道', worldW: 1700, indoor: false,
+      spawn: { x: 140 }, doors: [{ x: 1560, label: '进入便利店', to: 'store', backX: 1500, w: 58 }]
     },
     store: {
-      id: 'store', name: '便利店内部', worldW: 780, indoor: true,
+      id: 'store', name: '便利店 · 安全屋', worldW: 780, indoor: true,
       spawn: { x: 150 }, doors: [
-        { x: 90, label: '回到街道', to: 'street', backX: 1500, w: 54 }
+        { x: 90, label: '回到街道', to: 'street', backX: 1500, w: 54 },
+        { x: 690, label: '深入下一街区', to: 'street', backX: 140, w: 60, next: true }
       ]
     }
   };
 
-  /* ---------- 遭遇波次表（演出编排）----------
-   * 每波: [type, side('R'右侧/'L'左侧背袭), 入场延迟秒]
-   * z1 教学: 2 只慢A，先后入场 —— 教会玩家砍击
-   * z2 提速: 3 只混编 A/B —— 测试走位
-   * z3 高潮: 两波 —— 先 2A 热身，再 B+C+背袭B —— 转合
-   */
-  var ZONES = [
-    { x: 360,  waves: [[['A', 'R', 0.6], ['A', 'R', 2.0]]] },
-    { x: 800,  waves: [[['A', 'R', 0.6], ['B', 'R', 1.6], ['A', 'R', 2.8]]] },
-    { x: 1250, waves: [[['A', 'R', 0.6], ['A', 'R', 1.6]],
-                       [['B', 'R', 0.5], ['C', 'R', 1.2], ['B', 'L', 2.6]]] }
-  ];
-
-  /* ---------- 数值 ---------- */
   var WALK = { hero: 225, vert: 150, bandTop: 24, bandBot: 12 };
-  var ATK = { dmg: 25, reach: 66, arc: 42, cd: 0.42, dur: 0.16, lunge: 14 };
+  var ATK = { dmg: 25, reach: 66, arc: 42, cd: 0.42, dur: 0.16, lunge: 12 };
   var ZSTAT = {
     A: { hp: 50,  speed: 40, dmg: 12, coin: 3, dispH: 100, windup: 0.5,  interruptible: true },
     B: { hp: 35,  speed: 88, dmg: 10, coin: 4, dispH: 92,  windup: 0.38, interruptible: true },
-    C: { hp: 130, speed: 30, dmg: 22, coin: 6, dispH: 128, windup: 0.55, interruptible: false }   // 坦克霸体：砍不断蓄力
+    C: { hp: 130, speed: 30, dmg: 22, coin: 6, dispH: 128, windup: 0.55, interruptible: false }
   };
 
   var canvas, ctx, dpr = 1;
@@ -55,21 +56,21 @@ window.ZCITY = window.ZCITY || {};
   var running = false, lastT = 0, rafId = 0;
   var hud = {}, coinsCount = 0, coinPop = 0, nearDoor = null, toastTimer = 0;
 
-  /* 战斗状态 */
   var fx = {
-    hitstop: 0, shakeT: 0, shakeMag: 0,
-    dmgNums: [], coins: [], slashT: 0,
-    combo: 0, comboT: 0, comboPop: 0,
-    markers: []
+    hitstop: 0, shakeT: 0, shakeMag: 0, shakeDur: 0.3,
+    dmgNums: [], coins: [], slashT: 0, spells: [], parts: [],
+    combo: 0, comboT: 0, comboPop: 0
   };
-  var enc = { zoneIdx: 0, phase: 'calm', waveIdx: 0, queue: [], waveGap: 0, lockCam: -1, allClear: false };
+  var enc = { block: 1, zones: makeZones(1), zoneIdx: 0, phase: 'calm', waveIdx: 0,
+              queue: [], waveGap: 0, lockCam: -1, allClear: false, tutDone: false };
   var defeated = false;
 
   function bandTop() { return view.groundY + WALK.bandTop; }
   function bandBot() { return view.h - WALK.bandBot; }
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function tierMul() { return 1 + 0.3 * (enc.block - 1); }
 
-  /* ---------- 音效（WebAudio 合成，零素材） ---------- */
+  /* ---------- 音效 ---------- */
   var AC = null, lastCoinSnd = 0;
   function audio() {
     if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { } }
@@ -108,7 +109,12 @@ window.ZCITY = window.ZCITY || {};
     },
     clear: function () { [523, 659, 784, 1047].forEach(function (f, i) { setTimeout(function () { tone(f, 0.14, 'triangle', 0.1); }, i * 90); }); },
     wave:  function () { tone(220, 0.18, 'sawtooth', 0.08, 110); },
-    die:   function () { tone(160, 0.3, 'sawtooth', 0.1, 40); noise(0.2, 0.14, 500); }
+    die:   function () { tone(160, 0.3, 'sawtooth', 0.1, 40); noise(0.2, 0.14, 500); },
+    fire:  function () { noise(0.3, 0.22, 1500); tone(300, 0.25, 'sawtooth', 0.12, 90); },
+    water: function () { tone(900, 0.3, 'sine', 0.14, 300); noise(0.2, 0.1, 3000); },
+    stone: function () { tone(80, 0.2, 'square', 0.2, 40); noise(0.25, 0.2, 400); },
+    rock:  function () { tone(60, 0.3, 'square', 0.24, 30); noise(0.35, 0.24, 300); },
+    magic: function () { tone(880, 0.12, 'triangle', 0.1, 1320); tone(1320, 0.2, 'triangle', 0.08, 1760); }
   };
 
   /* ---------- 画布 ---------- */
@@ -133,28 +139,36 @@ window.ZCITY = window.ZCITY || {};
     var st = zStat(type);
     var sx = side === 'L' ? camera.x - 60 - Math.random() * 80
                           : camera.x + view.w + 50 + Math.random() * 90;
+    var tm = tierMul();
     zombies.push({
       type: type, x: sx, y: bandTop() + 24 + Math.random() * (bandBot() - bandTop() - 48),
-      hp: st.hp, dispH: st.dispH, speed: st.speed, dmg: st.dmg, coin: st.coin,
+      hp: Math.round(st.hp * tm), hpMax: Math.round(st.hp * tm),
+      dispH: st.dispH, speed: st.speed, dmg: st.dmg + (enc.block - 1) * 2,
+      coin: st.coin + Math.floor((enc.block - 1) / 2),
       phase: Math.random() * 10, entering: true,
-      windup: 0, atkCd: 1.2, atkT: 0, hurtT: 0, kb: 0,
-      dead: false, deadT: 0, squish: 0,
-      spell: Math.random() < 0.5 ? '火' : '冰'
+      windup: 0, atkCd: enc.block === 1 ? 2.0 : 1.2, atkT: 0, hurtT: 0, kb: 0, charWin: null,
+      dead: false, deadT: 0,
+      spell: SP ? SP.pickSpellKey() : '火'
     });
     S.wave();
   }
 
   /* ---------- 遭遇编排 ---------- */
-  function zoneActive() { return enc.phase === 'active'; }
   function beginZone(z) {
     enc.phase = 'active';
     enc.waveIdx = 0;
     enc.lockCam = clamp(z.x - view.w * 0.42, 0, Math.max(0, scene.worldW - view.w));
     scheduleWave(0);
     banner('⚠ 遭遇丧尸', '#ffd873');
+    if (!enc.tutDone) {
+      enc.tutDone = true;
+      setTimeout(function () { showToast('🎯 僵尸头顶有汉字弱点', 2200); }, 700);
+      setTimeout(function () { showToast('🎤 点喊词读出它 → 释放法术', 2200); }, 3100);
+      setTimeout(function () { showToast('✍️ 再画符 → 双倍伤害！', 2200); }, 5500);
+    }
   }
   function scheduleWave(i) {
-    enc.queue = ZONES[enc.zoneIdx].waves[i].map(function (w) {
+    enc.queue = enc.zones[enc.zoneIdx].waves[i].map(function (w) {
       return { type: w[0], side: w[1], t: w[2] };
     });
   }
@@ -163,16 +177,14 @@ window.ZCITY = window.ZCITY || {};
   }
   function encTick(dt) {
     if (scene.indoor) return;
-    // 探索拍→触发遭遇 / 肃清拍→进入下一段探索（必须在 active 早退之前）
-    if (enc.phase === 'calm' && enc.zoneIdx < ZONES.length) {
-      if (hero.x >= ZONES[enc.zoneIdx].x) beginZone(ZONES[enc.zoneIdx]);
+    if (enc.phase === 'calm' && enc.zoneIdx < enc.zones.length) {
+      if (hero.x >= enc.zones[enc.zoneIdx].x) beginZone(enc.zones[enc.zoneIdx]);
     }
-    if (enc.phase === 'clear' && enc.zoneIdx < ZONES.length - 1) {
+    if (enc.phase === 'clear' && enc.zoneIdx < enc.zones.length - 1) {
       enc.zoneIdx++; enc.phase = 'calm';
     }
     if (enc.phase !== 'active') return;
-    var zone = ZONES[enc.zoneIdx];
-    // 入场倒计时
+    var zone = enc.zones[enc.zoneIdx];
     for (var i = enc.queue.length - 1; i >= 0; i--) {
       var q = enc.queue[i];
       q.t -= dt;
@@ -180,19 +192,18 @@ window.ZCITY = window.ZCITY || {};
     }
     if (waveDefeated() && enc.waveGap <= 0) {
       if (enc.waveIdx < zone.waves.length - 1) {
-        enc.waveGap = 1.15;                                  // 波间呼吸
+        enc.waveGap = 1.15;
         enc.waveIdx++;
         banner('第二波来袭！', '#ff9c6b');
       } else {
-        // 区域肃清：结算拍
         enc.phase = 'clear'; enc.lockCam = -1;
-        hero.hp = Math.min(hero.hpMax, hero.hp + 12);        // 休息回复
+        hero.hp = Math.min(hero.hpMax, hero.hp + 12);
         coinsCount += 5; coinPop = 0.3;
         banner('✔ 区域肃清  +5金币', '#9ce89c');
         S.clear();
-        if (enc.zoneIdx >= ZONES.length - 1) {
+        if (enc.zoneIdx >= enc.zones.length - 1) {
           enc.allClear = true;
-          setTimeout(function () { showToast('大道已肃清！进便利店补给吧 🚪', 2600); }, 1500);
+          setTimeout(function () { showToast('街区已肃清！便利店补给 🚪 或深入下一街区 →', 3000); }, 1500);
         }
       }
     }
@@ -200,6 +211,18 @@ window.ZCITY = window.ZCITY || {};
       enc.waveGap -= dt;
       if (enc.waveGap <= 0) scheduleWave(enc.waveIdx);
     }
+  }
+
+  /* ---------- 下一街区（无尽循环） ---------- */
+  function nextBlock() {
+    enc.block++;
+    enc.zones = makeZones(enc.block);
+    enc.zoneIdx = 0; enc.waveIdx = 0;
+    enc.phase = 'calm'; enc.lockCam = -1; enc.allClear = false; enc.queue = [];
+    var nm = BLOCK_NAMES[(enc.block - 1) % BLOCK_NAMES.length];
+    SCENES.street.name = '第' + enc.block + '街区 · ' + nm;
+    if (hud.scene) hud.scene.textContent = SCENES.street.name;
+    banner('第' + enc.block + '街区 · ' + nm + '（难度+' + Math.round((tierMul() - 1) * 100) + '%）', '#cbb8ff');
   }
 
   /* ---------- 战斗 ---------- */
@@ -212,36 +235,35 @@ window.ZCITY = window.ZCITY || {};
     for (var i = 0; i < zombies.length; i++) {
       var z = zombies[i];
       if (z.dead) continue;
-      var dx = (z.x - hero.x) * hero.face;                   // 面前为正
+      var dx = (z.x - hero.x) * hero.face;
       if (dx > -10 && dx < ATK.reach && Math.abs(z.y - hero.y) < ATK.arc) {
         z.hp -= ATK.dmg;
         z.hurtT = 0.16;
-        z.kb = hero.face * 150 * (zStat(z.type).interruptible ? 1 : 0.35);   // 坦克抗击退
-        if (zStat(z.type).interruptible) z.windup = 0;                       // 只有 A/B 蓄力可被打断
+        z.kb = hero.face * 150 * (zStat(z.type).interruptible ? 1 : 0.35);
+        if (zStat(z.type).interruptible) z.windup = 0;
         hitAny = true;
-        fx.dmgNums.push({ x: z.x, y: z.y - z.dispH - 14, txt: String(ATK.dmg), t: 0.7, crit: false });
+        fx.dmgNums.push({ x: z.x, y: z.y - z.dispH - 14, txt: String(ATK.dmg), t: 0.7 });
         if (z.hp <= 0) killZombie(z);
       }
     }
     if (hitAny) {
-      fx.hitstop = 0.07;                                     // 砍中：人停住（打击阻力）
+      fx.hitstop = 0.07;
       fx.combo++; fx.comboT = 2.5; fx.comboPop = 1;
-      if (fx.combo >= 3) { fx.shakeT = 0.18; fx.shakeMag = 3; }
+      if (fx.combo >= 3) { fx.shakeT = 0.18; fx.shakeMag = 3; fx.shakeDur = 0.18; }
       S.hit();
     } else {
-      hero.x = clamp(hero.x + hero.face * ATK.lunge, 26, scene.worldW - 26);   // 挥空：进步
+      hero.x = clamp(hero.x + hero.face * ATK.lunge, 26, scene.worldW - 26);
     }
   }
-  function killZombie(z) {
-    z.dead = true; z.deadT = 0; z.squish = 1;
+  function killZombie(z, bySpell) {
+    z.dead = true; z.deadT = 0; z.charWin = null;
     S.die();
-    for (var c = 0; c < z.coin; c++) {
+    var n = z.coin + (bySpell ? 2 : 0);
+    for (var c = 0; c < n; c++) {
       fx.coins.push({
         sx: z.x - camera.x, sy: z.y - z.dispH * 0.6 - c * 4,
-        t: 0, dur: 0.55 + Math.random() * 0.3,
-        delay: c * 0.06,
-        cx: (Math.random() - 0.5) * 90,                      // 抛物线控制点
-        arc: 60 + Math.random() * 70
+        t: 0, dur: 0.55 + Math.random() * 0.3, delay: c * 0.06,
+        cx: (Math.random() - 0.5) * 90, arc: 60 + Math.random() * 70
       });
     }
   }
@@ -252,13 +274,15 @@ window.ZCITY = window.ZCITY || {};
     hero.x = clamp(hero.x + (hero.x < fromX ? -26 : 26), 26, scene.worldW - 26);
     fx.combo = 0;
     fx.hitstop = 0.09;
-    fx.shakeT = 0.3; fx.shakeMag = 5;
+    fx.shakeT = 0.3; fx.shakeMag = 5; fx.shakeDur = 0.3;
     fx.dmgNums.push({ x: hero.x, y: hero.y - 120, txt: '-' + dmg, t: 0.8, hurt: true });
     S.hurt();
     var v = document.getElementById('hurtFx');
     if (v) { v.style.opacity = '1'; setTimeout(function () { v.style.opacity = '0'; }, 180); }
     if (hero.hp <= 0) {
       hero.hp = 0; defeated = true;
+      if (ZCITY.Voice) ZCITY.Voice.closePanel();
+      if (ZCITY.Rune) ZCITY.Rune.close();
       var p = document.getElementById('defeatPanel');
       if (p) p.classList.add('show');
     }
@@ -269,29 +293,84 @@ window.ZCITY = window.ZCITY || {};
     defeated = false;
     hero.hp = hero.hpMax; hero.invulnT = 1.6;
     zombies.length = 0; enc.queue.length = 0;
-    // 重打当前区
+    if (enc.allClear || enc.phase === 'clear') {
+      // 已肃清后的意外死亡：原地复活即可
+      enc.lockCam = -1;
+      banner('重新出发', '#ffd873');
+      return;
+    }
     enc.phase = 'active'; enc.waveIdx = 0;
-    enc.lockCam = clamp(ZONES[enc.zoneIdx].x - view.w * 0.42, 0, Math.max(0, scene.worldW - view.w));
+    enc.lockCam = clamp(enc.zones[enc.zoneIdx].x - view.w * 0.42, 0, Math.max(0, scene.worldW - view.w));
     hero.x = enc.lockCam + 70; hero.y = (bandTop() + bandBot()) / 2;
     scheduleWave(0);
     banner('再战！', '#ffd873');
   }
 
+  /* ---------- 法术（spell_cast 回调） ---------- */
+  function spellStrike(z, ch, sp, dmg, doubled, action) {
+    // 从主角发出的"字弹"追踪目标
+    fx.spells.push({
+      ch: ch, color: sp.color, kind: sp.kind,
+      x: hero.x - camera.x + hero.face * 20, y: hero.y - 70,
+      z: z, t: 0, dur: 0.45, dmg: dmg, doubled: doubled, hitBig: false
+    });
+    if (sp.kind === 'fire') S.fire();
+    else if (sp.kind === 'water') S.water();
+    else if (sp.kind === 'stone') S.stone();
+    else S.rock();
+    S.magic();
+    void action;
+  }
+  function spellHit(p) {
+    var z = p.z;
+    if (!z || z.dead) return;
+    z.hp -= p.dmg;
+    z.hurtT = 0.22;
+    z.windup = 0;                                        // 法术打断蓄力（含C——法术特权）
+    z.kb = (z.x >= hero.x ? 1 : -1) * (p.doubled ? 220 : 110) * (z.type === 'C' ? 0.4 : 1);
+    fx.dmgNums.push({
+      x: z.x, y: z.y - z.dispH - 22, txt: (p.doubled ? '双倍 ' : '') + p.dmg,
+      t: 0.9, big: p.doubled, color: p.color
+    });
+    burst(z.x - camera.x, z.y - z.dispH * 0.5, p.color, p.doubled ? 26 : 14);
+    fx.hitstop = p.doubled ? 0.11 : 0.06;
+    if (p.doubled) { fx.shakeT = 0.32; fx.shakeMag = 6; fx.shakeDur = 0.32; }
+    fx.combo++; fx.comboT = 2.5; fx.comboPop = 1;
+    // 法术冲击波：全场僵尸震慑（施法者获得喘息——学习节奏保护）
+    zombies.forEach(function (o) {
+      if (o === z || o.dead || o.entering) return;
+      o.hurtT = Math.max(o.hurtT, 0.3);
+      o.windup = 0;
+      o.atkCd = Math.max(o.atkCd, p.doubled ? 2.2 : 1.4);
+      o.kb = (o.x >= z.x ? 1 : -1) * 60;
+    });
+    if (z.hp <= 0) killZombie(z, true);
+  }
+  function burst(x, y, color, n) {
+    for (var i = 0; i < n; i++) {
+      var a = Math.random() * Math.PI * 2, sp2 = 60 + Math.random() * 180;
+      fx.parts.push({ x: x, y: y, vx: Math.cos(a) * sp2, vy: Math.sin(a) * sp2 - 60,
+                      t: 0.5 + Math.random() * 0.35, color: color, r: 2 + Math.random() * 3.5 });
+    }
+  }
+
   /* ---------- 场景切换 ---------- */
-  function enterScene(id, backX) {
+  function enterScene(id, backX, viaDoor) {
     scene = SCENES[id];
     zombies.length = 0; enc.queue.length = 0;
-    if (id === 'street' && enc.allClear) enc.phase = 'clear';    // 肃清后回街不再触发
+    if (viaDoor && viaDoor.next) nextBlock();
+    if (id === 'street' && enc.allClear) enc.phase = 'clear';
     hero.x = backX != null ? backX : scene.spawn.x;
     hero.y = (bandTop() + bandBot()) / 2;
     camera.x = clamp(hero.x - view.w * 0.38, 0, Math.max(0, scene.worldW - view.w));
     if (id === 'street' && !enc.allClear && enc.phase === 'active') {
-      enc.lockCam = clamp(ZONES[enc.zoneIdx].x - view.w * 0.42, 0, Math.max(0, scene.worldW - view.w));
+      enc.lockCam = clamp(enc.zones[enc.zoneIdx].x - view.w * 0.42, 0, Math.max(0, scene.worldW - view.w));
       scheduleWave(enc.waveIdx);
     }
     nearDoor = null;
     document.getElementById('enterBtn').style.display = 'none';
     if (hud.scene) hud.scene.textContent = scene.name;
+    if (id === 'store') { hero.hp = hero.hpMax; showToast('🛒 便利店安全 · 血量全满', 1800); }
   }
   function startTransition(cb) {
     if (trans.phase !== 0) return;
@@ -306,7 +385,12 @@ window.ZCITY = window.ZCITY || {};
   ];
   function drawStreetBg(camX) {
     var sky = ctx.createLinearGradient(0, 0, 0, view.groundY);
-    sky.addColorStop(0, '#2b2333'); sky.addColorStop(0.6, '#5a3a44'); sky.addColorStop(1, '#8a5a3a');
+    var hue = (enc.block - 1) % BLOCK_NAMES.length;
+    var skies = [['#2b2333', '#5a3a44', '#8a5a3a'], ['#1a2030', '#2a3a5a', '#4a5a8a'],
+                 ['#231a28', '#4a2a3a', '#7a3a3a'], ['#20281e', '#3a4a2e', '#6a7a3e'],
+                 ['#1c222e', '#2e4456', '#4a6a7a']];
+    var sk = skies[hue];
+    sky.addColorStop(0, sk[0]); sky.addColorStop(0.6, sk[1]); sky.addColorStop(1, sk[2]);
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, view.w, view.groundY);
     var drew = 0;
@@ -366,18 +450,19 @@ window.ZCITY = window.ZCITY || {};
     ctx.save();
     ctx.fillStyle = '#191420';
     ctx.fillRect(x - dw / 2, top, dw, dh);
-    ctx.strokeStyle = '#ffd873'; ctx.lineWidth = 3;
+    ctx.strokeStyle = d.next ? '#7ec8ff' : '#ffd873'; ctx.lineWidth = 3;
     ctx.strokeRect(x - dw / 2, top, dw, dh);
     var g = ctx.createLinearGradient(0, top, 0, view.groundY);
-    g.addColorStop(0, 'rgba(255,190,90,0.55)'); g.addColorStop(1, 'rgba(255,120,60,0.12)');
+    g.addColorStop(0, d.next ? 'rgba(120,190,255,0.55)' : 'rgba(255,190,90,0.55)');
+    g.addColorStop(1, d.next ? 'rgba(60,120,255,0.12)' : 'rgba(255,120,60,0.12)');
     ctx.fillStyle = g;
     ctx.fillRect(x - dw / 2 + 3, top + 3, dw - 6, dh - 6);
-    ctx.fillStyle = '#ffe28a';
+    ctx.fillStyle = d.next ? '#a8d8ff' : '#ffe28a';
     ctx.font = 'bold 13px "Microsoft YaHei", sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillRect(x - dw / 2 - 6, top - 24, dw + 12, 20);
-    ctx.fillStyle = '#5a2a10';
-    ctx.fillText(d.label.replace(/^(进入|回到)/, ''), x, top - 14);
+    ctx.fillRect(x - dw / 2 - 8, top - 24, dw + 16, 20);
+    ctx.fillStyle = d.next ? '#1a3a5a' : '#5a2a10';
+    ctx.fillText(d.label.replace(/^(进入|回到|深入)/, ''), x, top - 14);
     ctx.restore();
   }
   function drawBarricades() {
@@ -403,10 +488,10 @@ window.ZCITY = window.ZCITY || {};
   }
   function drawHero(h) {
     var x = h.x - camera.x, y = h.y;
-    if (h.invulnT > 0 && Math.floor(h.invulnT * 14) % 2 === 0) return;   // 无敌闪烁
+    if (h.invulnT > 0 && Math.floor(h.invulnT * 14) % 2 === 0) return;
     drawShadow(x, y, 22);
     var e = A.get('hero.run'), moving = h.moving;
-    var lean = h.atkT > 0 ? h.face * 6 : 0;                  // 出刀前倾
+    var lean = h.atkT > 0 ? h.face * 6 : 0;
     if (e && e.ok) {
       var idx = moving ? Math.floor(h.walkPhase) : 0;
       var ee = moving ? e : (A.get('hero.idle') || e);
@@ -423,7 +508,6 @@ window.ZCITY = window.ZCITY || {};
       ctx.fillStyle = '#2b2333'; ctx.fillRect(-9, -66, 18, 7);
       ctx.restore();
     }
-    // 砍击弧光
     if (fx.slashT > 0) {
       var p = 1 - fx.slashT / ATK.dur;
       ctx.save();
@@ -439,25 +523,25 @@ window.ZCITY = window.ZCITY || {};
   function drawZombie(z) {
     var x = z.x - camera.x;
     if (x < -170 || x > view.w + 170) return;
-    if (z.dead) {                                            // 死亡：压扁+渐隐
+    if (z.dead) {
       var p = Math.min(1, z.deadT / 0.55);
       ctx.save();
       ctx.globalAlpha = 1 - p;
       drawShadow(x, z.y, 18 * (1 - p * 0.5));
       var e2 = A.get('zombie.' + z.type + '_walk');
       ctx.translate(x, z.y);
-      ctx.scale(1 + p * 0.5, Math.max(0.05, 1 - p));         // squash
+      ctx.scale(1 + p * 0.5, Math.max(0.05, 1 - p));
       ctx.translate(-x, -z.y);
       A.drawFrame(ctx, e2, 0, x, z.y, z.dispH, 1);
       ctx.restore();
       return;
     }
     drawShadow(x, z.y, 18);
-    var lean = z.windup > 0 ? -6 * (1 - z.windup / zStat(z.type).windup) : 0;   // 蓄力后仰→前扑
+    var lean = z.windup > 0 ? -6 * (1 - z.windup / zStat(z.type).windup) : 0;
     var anim = (z.close && !z.entering) ? z.type + '_attack' : z.type + '_walk';
     var e = A.get('zombie.' + anim) || A.get('zombie.' + z.type + '_walk');
     var rawIdx = z.windup > 0 ? Math.floor((zStat(z.type).windup - z.windup) * 10) : (z.close ? Math.floor(z.atkT) : Math.floor(z.phase));
-    var idx = isFinite(rawIdx) ? rawIdx : 0;                 // 防 NaN 帧索引（曾致 tick 崩溃）
+    var idx = isFinite(rawIdx) ? rawIdx : 0;
     var face = (hero.x < z.x) ? 1 : -1;
     var ok = A.drawFrame(ctx, e, idx, x + lean, z.y, z.dispH, face);
     if (!ok) {
@@ -471,38 +555,45 @@ window.ZCITY = window.ZCITY || {};
       ctx.fillRect(x - 20, z.y - z.dispH, 40, z.dispH);
       ctx.restore();
     }
-    // 蓄力警告
     if (z.windup > 0) {
       ctx.save();
       ctx.font = 'bold 26px sans-serif'; ctx.textAlign = 'center';
       ctx.fillStyle = '#ffb02e';
-      ctx.fillText('!', x, z.y - z.dispH - 46 - (1 - z.windup / 0.5) * 6);
+      ctx.fillText('!', x, z.y - z.dispH - 46 - (1 - z.windup / zStat(z.type).windup) * 6);
       ctx.restore();
     }
-    // 血条（受伤才显示）
-    if (z.hp < zStat(z.type).hp) {
-      var bw = 44, hpP = z.hp / zStat(z.type).hp;
+    if (z.hp < z.hpMax) {
+      var bw = 44, hpP = Math.max(0, z.hp / z.hpMax);
       ctx.fillStyle = 'rgba(0,0,0,0.5)';
       ctx.fillRect(x - bw / 2, z.y - z.dispH - 12, bw, 5);
       ctx.fillStyle = hpP > 0.5 ? '#9ce89c' : hpP > 0.25 ? '#ffd873' : '#ff6b5c';
       ctx.fillRect(x - bw / 2, z.y - z.dispH - 12, bw * hpP, 5);
     }
-    // 弱点字符牌
+    // 弱点字符牌（双倍窗口内金光呼吸）
     var bob = Math.sin(z.phase * 0.6) * 3;
     var bw2 = 34, bx = x - bw2 / 2, by = z.y - z.dispH - 40 + bob;
+    var pend = z.charWin && (z.charWin.voice || z.charWin.rune);
     ctx.save();
     ctx.fillStyle = '#f5e6c8';
-    ctx.strokeStyle = '#8a5a2a'; ctx.lineWidth = 2;
+    ctx.strokeStyle = pend ? '#ffd873' : '#8a5a2a'; ctx.lineWidth = pend ? 3 : 2;
+    if (pend) ctx.shadowColor = '#ffd873', ctx.shadowBlur = 10;
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(bx, by, bw2, 32, 6); else ctx.rect(bx, by, bw2, 32);
     ctx.fill(); ctx.stroke();
+    ctx.shadowBlur = 0;
     ctx.font = 'bold 22px "Microsoft YaHei", sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = '#c03028';
     ctx.fillText(z.spell, x, by + 17);
+    if (z.charWin && (z.charWin.voice || z.charWin.rune)) {         // 完成角标
+      ctx.font = '11px sans-serif';
+      ctx.fillStyle = '#3a7a2a';
+      ctx.textAlign = 'left';
+      ctx.fillText((z.charWin.voice ? '🔊' : '') + (z.charWin.rune ? '✍' : ''), bx + 2, by + 30);
+    }
     ctx.restore();
   }
-  function drawMarker(q) {                                   // 入场预告 "!"
+  function drawMarker(q) {
     var x = (q.side === 'L' ? camera.x - 40 : camera.x + view.w + 40) - camera.x;
     ctx.save();
     ctx.font = 'bold 30px sans-serif'; ctx.textAlign = 'center';
@@ -513,24 +604,56 @@ window.ZCITY = window.ZCITY || {};
 
   /* ---------- 特效层 ---------- */
   function drawFx(dt) {
-    // 金币飞行（屏幕坐标，贝塞尔飞向金币 HUD）
-    var tx = view.w - 64, ty = 38;
-    for (var i = fx.coins.length - 1; i >= 0; i--) {
-      var c = fx.coins[i];
+    // 法术字弹（追踪目标）
+    for (var s = fx.spells.length - 1; s >= 0; s--) {
+      var p = fx.spells[s];
+      p.t += dt / p.dur;
+      var tx = p.z.x - camera.x, ty = p.z.y - p.z.dispH * 0.55;
+      var k = Math.min(1, p.t);
+      var cx = p.x + (tx - p.x) * k;
+      var cy = p.y + (ty - p.y) * k - Math.sin(k * Math.PI) * 60;
+      ctx.save();
+      ctx.font = 'bold ' + (p.doubled ? 46 : 34) + 'px "Microsoft YaHei", serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.shadowColor = p.color; ctx.shadowBlur = p.doubled ? 26 : 14;
+      ctx.fillStyle = p.color;
+      ctx.fillText(p.ch, cx, cy);
+      ctx.restore();
+      // 尾迹粒子
+      if (Math.random() < 0.6) fx.parts.push({ x: cx, y: cy, vx: (Math.random() - 0.5) * 40, vy: (Math.random() - 0.5) * 40,
+        t: 0.3, color: p.color, r: 1.5 + Math.random() * 2 });
+      if (k >= 1) { fx.spells.splice(s, 1); spellHit(p); }
+    }
+    // 粒子
+    for (var i = fx.parts.length - 1; i >= 0; i--) {
+      var q = fx.parts[i];
+      q.t -= dt;
+      if (q.t <= 0) { fx.parts.splice(i, 1); continue; }
+      q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 260 * dt;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, q.t * 3);
+      ctx.fillStyle = q.color;
+      ctx.beginPath(); ctx.arc(q.x, q.y, q.r, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    // 金币飞行
+    var tcx = view.w - 64, tcy = 38;
+    for (var c2 = fx.coins.length - 1; c2 >= 0; c2--) {
+      var c = fx.coins[c2];
       if (c.delay > 0) { c.delay -= dt; continue; }
       c.t += dt / c.dur;
       var t = Math.min(1, c.t);
-      var mx = (c.sx + tx) / 2 + c.cx;
-      var my = Math.min(c.sy, ty) - c.arc;
-      var x = (1 - t) * (1 - t) * c.sx + 2 * (1 - t) * t * mx + t * t * tx;
-      var y = (1 - t) * (1 - t) * c.sy + 2 * (1 - t) * t * my + t * t * ty;
+      var mx = (c.sx + tcx) / 2 + c.cx;
+      var my = Math.min(c.sy, tcy) - c.arc;
+      var x = (1 - t) * (1 - t) * c.sx + 2 * (1 - t) * t * mx + t * t * tcx;
+      var y = (1 - t) * (1 - t) * c.sy + 2 * (1 - t) * t * my + t * t * tcy;
       ctx.save();
       ctx.translate(x, y);
-      ctx.scale(Math.abs(Math.cos(t * 9)) * 0.7 + 0.3, 1);   // 硬币翻转
+      ctx.scale(Math.abs(Math.cos(t * 9)) * 0.7 + 0.3, 1);
       ctx.fillStyle = '#ffd873'; ctx.strokeStyle = '#a87818'; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       ctx.restore();
-      if (t >= 1) { fx.coins.splice(i, 1); coinsCount++; coinPop = 0.3; S.coin(); }
+      if (t >= 1) { fx.coins.splice(c2, 1); coinsCount++; coinPop = 0.3; S.coin(); }
     }
     // 伤害数字
     for (var d = fx.dmgNums.length - 1; d >= 0; d--) {
@@ -539,15 +662,14 @@ window.ZCITY = window.ZCITY || {};
       if (n.t <= 0) { fx.dmgNums.splice(d, 1); continue; }
       ctx.save();
       ctx.globalAlpha = Math.min(1, n.t * 2.5);
-      ctx.font = 'bold 19px "Microsoft YaHei", sans-serif';
+      ctx.font = 'bold ' + (n.big ? 26 : 19) + 'px "Microsoft YaHei", sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillStyle = n.hurt ? '#ff6b5c' : '#ffe9a0';
+      ctx.fillStyle = n.color || (n.hurt ? '#ff6b5c' : '#ffe9a0');
       ctx.strokeStyle = 'rgba(20,10,0,0.8)'; ctx.lineWidth = 3;
       ctx.strokeText(n.txt, n.x - camera.x, n.y);
       ctx.fillText(n.txt, n.x - camera.x, n.y);
       ctx.restore();
     }
-    // 连击
     if (fx.combo >= 2) {
       fx.comboPop = Math.max(0, fx.comboPop - dt * 4);
       ctx.save();
@@ -572,7 +694,7 @@ window.ZCITY = window.ZCITY || {};
     b.textContent = text;
     b.style.color = color || '#ffd873';
     b.classList.remove('show');
-    void b.offsetWidth;                                      // 重启动画
+    void b.offsetWidth;
     b.classList.add('show');
   }
   function showToast(msg, ms) {
@@ -601,17 +723,21 @@ window.ZCITY = window.ZCITY || {};
     else if (trans.phase === 2) { trans.a -= rdt * 2.4; if (trans.a <= 0) { trans.a = 0; trans.phase = 0; } }
 
     var dt = rdt;
-    if (fx.hitstop > 0) { fx.hitstop -= rdt; dt = 0; }       // 冻帧：世界暂停仍在渲染
+    if (fx.hitstop > 0) { fx.hitstop -= rdt; dt = 0; }
     if (fx.shakeT > 0) fx.shakeT -= rdt;
+    // 施法面板打开时世界冻结（学习者答题/书写不被围殴）
+    if (document.getElementById('voicePanel') || document.getElementById('runeBoard')) {
+      dt = 0;
+      keys.left = keys.right = keys.up = keys.down = false;
+    }
 
     if (!defeated) {
-      // 八向移动
       var vx = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
       var vy = (keys.down ? 1 : 0) - (keys.up ? 1 : 0);
       hero.moving = !!(vx || vy);
       if (vx) hero.face = vx;
       var minX = 26, maxX = scene.worldW - 26;
-      if (enc.lockCam >= 0) { minX = enc.lockCam + 26; maxX = enc.lockCam + view.w - 26; }  // 战斗锁定
+      if (enc.lockCam >= 0) { minX = enc.lockCam + 26; maxX = enc.lockCam + view.w - 26; }
       hero.x = clamp(hero.x + vx * WALK.hero * dt, minX, maxX);
       hero.y = clamp(hero.y + vy * WALK.vert * dt, bandTop(), bandBot());
       if (hero.moving) hero.walkPhase += dt * 1.7;
@@ -620,17 +746,16 @@ window.ZCITY = window.ZCITY || {};
       if (hero.invulnT > 0) hero.invulnT -= rdt;
 
       encTick(dt);
+      if (SP) SP.tick(dt, rdt);
 
-      // 僵尸 AI
       for (var i = zombies.length - 1; i >= 0; i--) {
         var z = zombies[i];
         if (z.dead) { z.deadT += dt; if (z.deadT > 0.55) zombies.splice(i, 1); continue; }
         if (z.hurtT > 0) z.hurtT -= rdt;
-        // 击退
         if (Math.abs(z.kb) > 4) { z.x += z.kb * dt; z.kb *= Math.max(0, 1 - 7 * dt); }
         var dx = hero.x - z.x, dy = hero.y - z.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
         z.close = d < 50;
-        if (z.entering) {                                     // 入场：走到屏内
+        if (z.entering) {
           var inX = camera.x + view.w * (z.x > camera.x + view.w / 2 ? 0.86 : 0.14);
           var edx = inX - z.x;
           z.x += Math.sign(edx) * z.speed * 1.3 * dt;
@@ -638,18 +763,18 @@ window.ZCITY = window.ZCITY || {};
           if (Math.abs(edx) < 24) z.entering = false;
           continue;
         }
-        if (z.windup > 0) {                                   // 蓄力→扑击
+        if (z.windup > 0) {
           z.windup -= dt;
           if (z.windup <= 0) {
-            z.x += Math.sign(dx) * 18;                        // 前扑
+            z.x += Math.sign(dx) * 18;
             if (d < 62 && hero.invulnT <= 0) hurtPlayer(z.dmg, z.x);
-            z.atkCd = 1.7;
+            z.atkCd = enc.block === 1 ? 2.6 : 1.7;          // 新手街攻击间隔放宽
           }
           continue;
         }
-        if (z.close && z.atkCd <= 0) { z.windup = zStat(z.type).windup; continue; }
+        if (z.close && z.atkCd <= 0) { z.windup = zStat(z.type).windup + (enc.block === 1 ? 0.25 : 0); continue; }
         if (z.atkCd > 0) z.atkCd -= dt;
-        if (z.close) z.atkT += dt * 8;                       // 攻击动画计时
+        if (z.close) z.atkT += dt * 8;
         if (!z.close) {
           z.x += dx / d * z.speed * dt;
           z.y += dy / d * z.speed * dt * 0.65;
@@ -657,7 +782,6 @@ window.ZCITY = window.ZCITY || {};
           z.phase += dt * 7;
         }
       }
-      // 僵尸间防重叠（可读性）
       for (var a = 0; a < zombies.length; a++) {
         var za = zombies[a]; if (za.dead || za.entering) continue;
         for (var b2 = a + 1; b2 < zombies.length; b2++) {
@@ -665,22 +789,20 @@ window.ZCITY = window.ZCITY || {};
           var ddx = zb.x - za.x, ddy = zb.y - za.y;
           if (Math.abs(ddx) < 30 && Math.abs(ddy) < 20) {
             var push = (30 - Math.abs(ddx)) * 0.5 * dt * 6;
-            var s = ddx >= 0 ? 1 : -1;
-            za.x -= s * push; zb.x += s * push;
+            var sg = ddx >= 0 ? 1 : -1;
+            za.x -= sg * push; zb.x += sg * push;
           }
         }
       }
     }
 
-    // 相机
     var target = clamp(hero.x - view.w * 0.38, 0, Math.max(0, scene.worldW - view.w));
-    if (enc.lockCam >= 0) target = enc.lockCam;              // 战斗锁定相机
+    if (enc.lockCam >= 0) target = enc.lockCam;
     camera.x += (target - camera.x) * Math.min(1, rdt * 6);
     if (Math.abs(target - camera.x) < 0.5) camera.x = target;
 
-    // 门口检测（战斗中不给进门）
     nearDoor = null;
-    if (!zoneActive() && !defeated) {
+    if (enc.phase !== 'active' && !defeated) {
       for (var k = 0; k < scene.doors.length; k++) {
         var dd = scene.doors[k];
         if (Math.abs(hero.x - dd.x) < (dd.w || 56) / 2 + 22 && hero.y < bandTop() + 64) { nearDoor = dd; break; }
@@ -693,10 +815,9 @@ window.ZCITY = window.ZCITY || {};
       if (want) eb.textContent = '🚪 ' + nearDoor.label;
     }
 
-    // ---- 渲染 ----
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     var shx = 0, shy = 0;
-    if (fx.shakeT > 0) { var m = fx.shakeMag * (fx.shakeT / 0.3); shx = (Math.random() - 0.5) * 2 * m; shy = (Math.random() - 0.5) * 2 * m; }
+    if (fx.shakeT > 0) { var m = fx.shakeMag * (fx.shakeT / fx.shakeDur); shx = (Math.random() - 0.5) * 2 * m; shy = (Math.random() - 0.5) * 2 * m; }
     ctx.save();
     ctx.translate(shx, shy);
     if (scene.indoor) drawStoreBg(camera.x); else drawStreetBg(camera.x);
@@ -705,7 +826,7 @@ window.ZCITY = window.ZCITY || {};
     for (var q = 0; q < enc.queue.length; q++) if (enc.queue[q].t < 0.5) drawMarker(enc.queue[q]);
     var list = zombies.slice();
     list.push({ isHero: true, y: hero.y });
-    list.sort(function (a, b) { return a.y - b.y; });
+    list.sort(function (a2, b3) { return a2.y - b3.y; });
     for (var j = 0; j < list.length; j++) {
       if (list[j].isHero) drawHero(hero); else drawZombie(list[j]);
     }
@@ -734,21 +855,33 @@ window.ZCITY = window.ZCITY || {};
     bindHold(document.getElementById('btnU'), 'up');
     bindHold(document.getElementById('btnD'), 'down');
     document.getElementById('btnAttack').addEventListener('click', function () { audio(); tryAttack(); });
-    document.getElementById('btnVoice').addEventListener('click', function () { showToast('🎤 语音喊词 M2 开放'); });
-    document.getElementById('btnRune').addEventListener('click', function () { showToast('✍️ 画符施法 M3 开放'); });
-    document.getElementById('homeBtn').addEventListener('click', function () { showToast('🏠 安全屋 M4 开放'); });
+
+    var mic = document.getElementById('btnVoice');
+    mic.addEventListener('pointerdown', function (e) { e.preventDefault(); audio(); ZCITY.Voice.onMicDown(e); });
+    mic.addEventListener('pointerup', function (e) { e.preventDefault(); ZCITY.Voice.onMicUp(); });
+    mic.addEventListener('pointerleave', function () { ZCITY.Voice.onMicUp(); });
+
+    document.getElementById('btnRune').addEventListener('click', function () {
+      audio();
+      if (ZCITY.Spells.locked()) { showToast('法力恢复中…'); return; }
+      ZCITY.Rune.open('main');
+    });
+    document.getElementById('homeBtn').addEventListener('click', function () {
+      showToast('🏠 安全屋（完整版 M4）· 当前可在便利店休息');
+    });
     document.getElementById('retryBtn').addEventListener('click', retry);
     document.getElementById('enterBtn').addEventListener('click', function () {
       if (!nearDoor || trans.phase !== 0) return;
       var d = nearDoor;
-      startTransition(function () { enterScene(d.to, d.backX); });
+      startTransition(function () { enterScene(d.to, d.backX, d); });
     });
-    // 键盘（桌面/自动化）
     var KMAP = { a: 'left', d: 'right', w: 'up', s: 'down', arrowleft: 'left', arrowright: 'right', arrowup: 'up', arrowdown: 'down' };
     document.addEventListener('keydown', function (e) {
       var k = KMAP[e.key.toLowerCase()];
       if (k) { keys[k] = true; e.preventDefault(); audio(); }
       if (e.key === 'j' || e.key === 'J' || e.key === ' ') { tryAttack(); e.preventDefault(); }
+      if (e.key === 'k' || e.key === 'K') ZCITY.Voice.openPanel();
+      if (e.key === 'l' || e.key === 'L') ZCITY.Rune.open('main');
     });
     document.addEventListener('keyup', function (e) {
       var k = KMAP[e.key.toLowerCase()];
@@ -771,6 +904,15 @@ window.ZCITY = window.ZCITY || {};
     camera = { x: 0 };
     scene = SCENES.street;
     if (hud.scene) hud.scene.textContent = scene.name;
+    if (SP) SP.init({
+      get hero() { return hero; },
+      get zombies() { return zombies; },
+      locked: function () { return defeated || trans.phase !== 0 || scene.indoor || SP.locked(); },
+      canCast: function () { return !defeated && trans.phase === 0 && !scene.indoor; },
+      toast: showToast,
+      banner: banner,
+      spellStrike: spellStrike
+    });
     bindUi();
     document.addEventListener('visibilitychange', function () {
       if (document.hidden) { running = false; cancelAnimationFrame(rafId); }
@@ -788,7 +930,7 @@ window.ZCITY = window.ZCITY || {};
       .then(function () { if (tip) tip.textContent = ''; start(); });
   });
 
-  ZCITY.Game = { start: start };
+  ZCITY.Game = { start: start, toast: showToast };
   ZCITY.Debug = {
     get hero() { return hero; },
     get zombies() { return zombies; },
@@ -799,17 +941,26 @@ window.ZCITY = window.ZCITY || {};
     view: function () { return view; },
     attack: tryAttack,
     hurt: function (n) { hurtPlayer(n || 999, hero.x + 30); },
+    heal: function (n) { hero.hp = Math.min(hero.hpMax, hero.hp + (n || 999)); if (defeated) retry(); },
     retry: retry,
     banner: banner,
     toast: showToast,
     go: function (id, backX) { enterScene(id, backX); },
+    nextBlock: nextBlock,
+    cast: function (ch, action) { ZCITY.Spells._resolve(ch, action); },
     state: function () {
       return {
-        scene: scene.id, encPhase: enc.phase, zoneIdx: enc.zoneIdx, waveIdx: enc.waveIdx,
+        scene: scene.id, block: enc.block, encPhase: enc.phase, zoneIdx: enc.zoneIdx, waveIdx: enc.waveIdx,
         lockCam: enc.lockCam, queue: enc.queue.length, zombies: zombies.length,
         dead: zombies.filter(function (z) { return z.dead; }).length,
-        heroHp: hero.hp, coins: coinsCount, combo: fx.combo, allClear: enc.allClear
+        heroHp: hero.hp, coins: coinsCount, combo: fx.combo, allClear: enc.allClear,
+        spells: fx.spells.length, parts: fx.parts.length, dmgNums: fx.dmgNums.length, coinFly: fx.coins.length
       };
     }
+  };
+  /* mic 高亮 */
+  ZCITY.Game.micState = function (on) {
+    var b = document.getElementById('btnVoice');
+    if (b) b.classList.toggle('listening', !!on);
   };
 })();

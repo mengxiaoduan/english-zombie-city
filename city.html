@@ -41,11 +41,9 @@
     100% { opacity: 0; letter-spacing: 10px; }
   }
 
-  /* ---------- 受击红晕 ---------- */
   #hurtFx { position: fixed; inset: 0; z-index: 12; pointer-events: none; opacity: 0; transition: opacity .15s;
             background: radial-gradient(ellipse at center, transparent 52%, rgba(190,25,25,0.5) 100%); }
 
-  /* ---------- 失败面板 ---------- */
   #defeatPanel { position: fixed; inset: 0; z-index: 30; display: none; align-items: center; justify-content: center;
                  background: rgba(8,5,10,0.82); }
   #defeatPanel.show { display: flex; }
@@ -57,14 +55,12 @@
               font-weight: 700; padding: 12px 34px; border-radius: 24px; letter-spacing: 3px; }
   #retryBtn:active { transform: scale(0.96); }
 
-  /* ---------- 提示条 ---------- */
   #toast { position: fixed; left: 50%; bottom: 176px; transform: translateX(-50%) translateY(8px); z-index: 20;
            background: rgba(18,14,24,0.92); color: #ffe28a; border: 1px solid #6a5a2a; border-radius: 10px;
            padding: 10px 16px; font-size: 14px; max-width: 86vw; text-align: center;
            opacity: 0; pointer-events: none; transition: opacity .18s, transform .18s; }
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-  /* ---------- 进入按钮 ---------- */
   #enterBtn { position: fixed; left: 50%; bottom: 246px; transform: translateX(-50%); z-index: 15;
               display: none; align-items: center; justify-content: center;
               background: rgba(60,45,15,0.9); color: #ffe28a; border: 2px solid #ffd873; border-radius: 22px;
@@ -73,7 +69,7 @@
   #enterBtn:active { background: rgba(150,110,30,0.95); }
   @keyframes pulse { 50% { box-shadow: 0 0 30px rgba(255,216,115,0.6); } }
 
-  /* ---------- 底部操作：左手方向键 + 右手攻击/技能 ---------- */
+  /* ---------- 底部操作 ---------- */
   #controls { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
               padding: 0 14px calc(env(safe-area-inset-bottom, 0px) + 12px);
               display: flex; align-items: flex-end; justify-content: space-between; }
@@ -89,12 +85,15 @@
 
   .right-col { display: flex; flex-direction: column; align-items: flex-end; gap: 9px; }
   .skill-row { display: flex; gap: 9px; }
-  .mini-cast { width: 47px; height: 47px; border-radius: 13px; border: 2px solid #6a5a2a;
+  .mini-cast { width: 50px; height: 50px; border-radius: 13px; border: 2px solid #6a5a2a;
                background: rgba(60,45,15,0.55); color: #ffe28a; font-size: 11px; font-weight: 700;
                display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
                user-select: none; touch-action: none; }
-  .mini-cast .big { font-size: 18px; line-height: 1; }
+  .mini-cast .big { font-size: 19px; line-height: 1; }
   .mini-cast:active { background: rgba(150,110,30,0.8); }
+  .mini-cast.listening { background: rgba(200,60,50,0.85); border-color: #ff9c8a;
+                         animation: micPulse 0.8s ease-in-out infinite; }
+  @keyframes micPulse { 50% { box-shadow: 0 0 22px rgba(255,120,100,0.8); } }
   #btnAttack { width: 82px; height: 82px; border-radius: 20px; border: 2px solid #a84838;
                background: radial-gradient(circle at 35% 28%, #e2655a, #a33028); color: #fff;
                font-size: 12px; font-weight: 800; letter-spacing: 2px;
@@ -105,6 +104,68 @@
 
   #loadingTip { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
                 color: #cbb8ff; font-size: 16px; z-index: 5; pointer-events: none; }
+
+  /* ---------- 拼音施法面板 ---------- */
+  #voicePanel { position: fixed; inset: 0; z-index: 40; background: rgba(8,6,12,0.7);
+                display: flex; align-items: center; justify-content: center; }
+  .vp-card { width: min(86vw, 340px); background: #201828; border: 2px solid #6a5a2a; border-radius: 18px;
+             padding: 22px 18px; text-align: center; animation: popIn .22s ease-out; }
+  @keyframes popIn { from { transform: scale(0.85); opacity: 0; } }
+  .vp-title { color: #cbb8ff; font-size: 14px; margin-bottom: 8px; }
+  .vp-char { font-size: 88px; line-height: 1.15; font-weight: 900; text-shadow: 0 4px 18px rgba(0,0,0,0.6); }
+  .vp-sub { color: #b9a8c8; font-size: 13px; margin: 6px 0 16px; }
+  .vp-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .vp-opt { background: #2c2438; border: 2px solid #4a3a5a; border-radius: 12px; padding: 14px 0;
+            font-size: 22px; color: #ffe28a; font-weight: 700; user-select: none; }
+  .vp-opt:active { background: #3c3050; }
+  .vp-opt.right { background: #2a5a2a; border-color: #6abe6a; color: #c8ffc8; }
+  .vp-opt.wrong { background: #5a2a2a; border-color: #be6a6a; color: #ffc8c8; opacity: 0.6; }
+  .vp-hear { margin-top: 14px; color: #7ec8ff; font-size: 14px; padding: 8px; }
+  .vp-close { margin-top: 4px; color: #8a7a9a; font-size: 13px; padding: 6px; }
+
+  /* ---------- 符纸画板 ---------- */
+  #runeBoard { position: fixed; inset: 0; z-index: 41; background: rgba(8,6,12,0.75);
+               display: flex; align-items: center; justify-content: center; }
+  .rb-card { width: min(88vw, 360px); background: #241c14; border: 2px solid #8a5a2a; border-radius: 18px;
+             padding: 18px 16px 14px; text-align: center; animation: popIn .22s ease-out;
+             box-shadow: 0 0 40px rgba(255,180,80,0.15); }
+  .rb-card.glow { animation: runeGlow .5s ease-out forwards; }
+  @keyframes runeGlow { to { box-shadow: 0 0 90px rgba(255,200,90,0.85); border-color: #ffd873; } }
+  .rb-title { color: #ffd873; font-size: 15px; margin-bottom: 10px; }
+  .rb-target { display: flex; align-items: baseline; justify-content: center; gap: 10px; margin-bottom: 10px; }
+  .rb-char { font-size: 44px; font-weight: 900; }
+  .rb-py { color: #b9a8c8; font-size: 14px; }
+  .rb-paper { position: relative; display: inline-block;
+              background-color: #f0e0b8; border-radius: 10px; padding: 4px; border: 2px solid #c9a86a; }
+  .rb-ring { position: absolute; right: -14px; top: -14px; width: 44px; height: 44px; transform: rotate(-90deg); }
+  .rb-ring .bg { fill: none; stroke: rgba(0,0,0,0.3); stroke-width: 5; }
+  .rb-ring .fg { fill: none; stroke: #ffd873; stroke-width: 5; stroke-dasharray: 163.4;
+                 stroke-dashoffset: 0; transition: stroke-dashoffset .2s linear; }
+  .rb-ring .fg.low { stroke: #ff6b5c; }
+  .rb-hint { color: #b9a8c8; font-size: 13px; margin-top: 10px; min-height: 18px; }
+  .rb-hint.warn { color: #ffb02e; }
+  .rb-close { margin-top: 8px; color: #8a7a9a; font-size: 13px; padding: 6px; }
+  .rb-fb { display: flex; gap: 12px; padding: 20px 4px; }
+  .rb-opt { width: 64px; height: 64px; display: flex; align-items: center; justify-content: center;
+            font-size: 34px; font-weight: 900; background: #f0e0b8; border: 2px solid #c9a86a; border-radius: 10px; }
+  .rb-opt.wrong { opacity: 0.4; }
+
+  /* ---------- 学习卡 ---------- */
+  #learnCard { position: fixed; left: 50%; bottom: 200px; transform: translateX(-50%) translateY(14px);
+               z-index: 22; display: flex; align-items: center; gap: 14px;
+               background: rgba(18,14,24,0.94); border: 2px solid #6a5a2a; border-radius: 16px;
+               padding: 12px 22px; opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s; }
+  #learnCard.show { opacity: 1; transform: translateX(-50%) translateY(0); animation: lcLife 2.6s forwards; }
+  @keyframes lcLife { 0%, 82% { opacity: 1; } 100% { opacity: 0; } }
+  .lc-char { font-size: 52px; font-weight: 900; line-height: 1; }
+  .lc-py { font-size: 18px; color: #ffe28a; font-weight: 700; }
+  .lc-en { font-size: 13px; color: #b9a8c8; }
+
+  /* ---------- 麦克风气泡 ---------- */
+  #micBubble { position: fixed; left: 50%; bottom: 268px; transform: translateX(-50%); z-index: 21;
+               background: rgba(200,60,50,0.95); color: #fff; font-size: 20px; font-weight: 800;
+               border-radius: 14px; padding: 10px 18px; opacity: 0; pointer-events: none; transition: opacity .15s; }
+  #micBubble.show { opacity: 1; }
 </style>
 </head>
 <body>
@@ -115,18 +176,20 @@
     <div id="hpWrap"><div id="hpFill"></div></div>
     <div id="coinChip"><span class="coin-ic"></span><span id="coinNum">0</span></div>
   </div>
-  <div id="sceneName">死亡大道</div>
-  <div id="verBadge">丧尸英语城 v3.0.0-m04</div>
+  <div id="sceneName">第1街区 · 死亡大道</div>
+  <div id="verBadge">丧尸英语城 v3.0.0-m06</div>
   <div id="waveBanner"></div>
   <div id="hurtFx"></div>
   <div id="loadingTip">加载中...</div>
   <div id="toast"></div>
   <div id="enterBtn">🚪 进入</div>
+  <div id="learnCard"></div>
+  <div id="micBubble"></div>
 
   <div id="defeatPanel">
     <div class="d-card">
       <h2>你被丧尸围困了…</h2>
-      <p>歇口气，单词就是你的武器（即将开放喊词施法）</p>
+      <p>喊出汉字弱点施法 · 画符可双倍伤害</p>
       <button id="retryBtn">爬起来再战！</button>
     </div>
   </div>
@@ -147,7 +210,12 @@
     </div>
   </div>
 
-  <script src="battle/city_assets.js?v=zcity-m04e"></script>
-  <script src="battle/battle_engine.js?v=zcity-m04e"></script>
+  <script src="hanzi-writer.min.js?v=zcity-m06"></script>
+  <script src="hanzi_data.js?v=zcity-m06"></script>
+  <script src="battle/city_assets.js?v=zcity-m06"></script>
+  <script src="battle/spell_cast.js?v=zcity-m06"></script>
+  <script src="battle/voice_engine.js?v=zcity-m06"></script>
+  <script src="battle/rune_board.js?v=zcity-m06"></script>
+  <script src="battle/battle_engine.js?v=zcity-m06"></script>
 </body>
 </html>
