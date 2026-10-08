@@ -20,6 +20,7 @@
   #hpFill { height: 100%; width: 100%; background: linear-gradient(90deg, #e2574c, #ff8a5c); transition: width .2s; }
   #coinChip { display: flex; align-items: center; gap: 4px; background: rgba(20,16,25,0.72); border: 1px solid #6a5a2a;
               border-radius: 8px; padding: 5px 9px; font-size: 14px; color: #ffd873; font-weight: 700; }
+  #coinNum { display: inline-block; transition: transform .12s; }
   .coin-ic { width: 13px; height: 13px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ffe9a0, #e8a820);
              border: 1px solid #a87818; display: inline-block; }
   #sceneName { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 34px); left: 12px; z-index: 9;
@@ -27,15 +28,44 @@
   #verBadge { position: fixed; right: 10px; top: calc(env(safe-area-inset-top, 0px) + 34px); z-index: 9;
               color: rgba(255,255,255,0.35); font-size: 11px; pointer-events: none; }
 
+  /* ---------- 波次横幅 ---------- */
+  #waveBanner { position: fixed; top: 26%; left: 0; right: 0; text-align: center; z-index: 18;
+                font-size: 21px; font-weight: 800; letter-spacing: 8px; color: #ffd873;
+                text-shadow: 0 2px 10px rgba(0,0,0,0.8); opacity: 0; pointer-events: none; }
+  #waveBanner.show { animation: wavePop 1.7s ease-out forwards; }
+  @keyframes wavePop {
+    0% { opacity: 0; transform: scale(0.7); letter-spacing: 22px; }
+    18% { opacity: 1; transform: scale(1.04); }
+    30% { transform: scale(1); }
+    75% { opacity: 1; }
+    100% { opacity: 0; letter-spacing: 10px; }
+  }
+
+  /* ---------- 受击红晕 ---------- */
+  #hurtFx { position: fixed; inset: 0; z-index: 12; pointer-events: none; opacity: 0; transition: opacity .15s;
+            background: radial-gradient(ellipse at center, transparent 52%, rgba(190,25,25,0.5) 100%); }
+
+  /* ---------- 失败面板 ---------- */
+  #defeatPanel { position: fixed; inset: 0; z-index: 30; display: none; align-items: center; justify-content: center;
+                 background: rgba(8,5,10,0.82); }
+  #defeatPanel.show { display: flex; }
+  .d-card { text-align: center; padding: 34px 44px; background: rgba(24,16,28,0.95); border: 1px solid #6a3050;
+            border-radius: 18px; }
+  .d-card h2 { color: #ff6b5c; font-size: 24px; margin-bottom: 8px; letter-spacing: 4px; }
+  .d-card p { color: #b9a8c8; font-size: 14px; margin-bottom: 22px; }
+  #retryBtn { background: linear-gradient(180deg, #ffb02e, #e2574c); color: #fff; border: none; font-size: 17px;
+              font-weight: 700; padding: 12px 34px; border-radius: 24px; letter-spacing: 3px; }
+  #retryBtn:active { transform: scale(0.96); }
+
   /* ---------- 提示条 ---------- */
-  #toast { position: fixed; left: 50%; bottom: 172px; transform: translateX(-50%) translateY(8px); z-index: 20;
+  #toast { position: fixed; left: 50%; bottom: 176px; transform: translateX(-50%) translateY(8px); z-index: 20;
            background: rgba(18,14,24,0.92); color: #ffe28a; border: 1px solid #6a5a2a; border-radius: 10px;
            padding: 10px 16px; font-size: 14px; max-width: 86vw; text-align: center;
            opacity: 0; pointer-events: none; transition: opacity .18s, transform .18s; }
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
   /* ---------- 进入按钮 ---------- */
-  #enterBtn { position: fixed; left: 50%; bottom: 236px; transform: translateX(-50%); z-index: 15;
+  #enterBtn { position: fixed; left: 50%; bottom: 246px; transform: translateX(-50%); z-index: 15;
               display: none; align-items: center; justify-content: center;
               background: rgba(60,45,15,0.9); color: #ffe28a; border: 2px solid #ffd873; border-radius: 22px;
               padding: 10px 20px; font-size: 16px; font-weight: 700; box-shadow: 0 0 18px rgba(255,216,115,0.35);
@@ -43,25 +73,35 @@
   #enterBtn:active { background: rgba(150,110,30,0.95); }
   @keyframes pulse { 50% { box-shadow: 0 0 30px rgba(255,216,115,0.6); } }
 
-  /* ---------- 底部操作 ---------- */
+  /* ---------- 底部操作：左手方向键 + 右手攻击/技能 ---------- */
   #controls { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
               padding: 0 14px calc(env(safe-area-inset-bottom, 0px) + 12px);
               display: flex; align-items: flex-end; justify-content: space-between; }
-  .dpad { display: grid; grid-template-columns: repeat(3, 58px); grid-template-rows: repeat(2, 58px); gap: 7px; }
+  .dpad { display: grid; grid-template-columns: repeat(3, 56px); grid-template-rows: repeat(2, 56px); gap: 7px; }
   .ctl { border-radius: 14px; border: 2px solid rgba(255,255,255,0.25);
-         background: rgba(30,24,40,0.55); color: #fff; font-size: 22px; display: flex; align-items: center;
+         background: rgba(30,24,40,0.55); color: #fff; font-size: 21px; display: flex; align-items: center;
          justify-content: center; user-select: none; touch-action: none; }
   .ctl.on { background: rgba(120,90,200,0.65); border-color: #a080ff; }
   #btnU { grid-column: 2; grid-row: 1; }
   #btnL { grid-column: 1; grid-row: 2; }
   #btnD { grid-column: 2; grid-row: 2; }
   #btnR { grid-column: 3; grid-row: 2; }
-  .cast-group { display: flex; gap: 12px; }
-  .cast { width: 72px; height: 72px; border-radius: 18px; border: 2px solid #6a5a2a; background: rgba(60,45,15,0.6);
-          color: #ffe28a; font-size: 13px; font-weight: 700; display: flex; flex-direction: column;
-          align-items: center; justify-content: center; gap: 2px; user-select: none; touch-action: none; }
-  .cast .big { font-size: 25px; line-height: 1; }
-  .cast:active { background: rgba(150,110,30,0.8); }
+
+  .right-col { display: flex; flex-direction: column; align-items: flex-end; gap: 9px; }
+  .skill-row { display: flex; gap: 9px; }
+  .mini-cast { width: 47px; height: 47px; border-radius: 13px; border: 2px solid #6a5a2a;
+               background: rgba(60,45,15,0.55); color: #ffe28a; font-size: 11px; font-weight: 700;
+               display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+               user-select: none; touch-action: none; }
+  .mini-cast .big { font-size: 18px; line-height: 1; }
+  .mini-cast:active { background: rgba(150,110,30,0.8); }
+  #btnAttack { width: 82px; height: 82px; border-radius: 20px; border: 2px solid #a84838;
+               background: radial-gradient(circle at 35% 28%, #e2655a, #a33028); color: #fff;
+               font-size: 12px; font-weight: 800; letter-spacing: 2px;
+               display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+               user-select: none; touch-action: none; box-shadow: 0 4px 14px rgba(180,50,40,0.45); }
+  #btnAttack .big { font-size: 30px; line-height: 1; }
+  #btnAttack:active { transform: scale(0.94); background: radial-gradient(circle at 35% 28%, #ff8a70, #c9483c); }
 
   #loadingTip { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
                 color: #cbb8ff; font-size: 16px; z-index: 5; pointer-events: none; }
@@ -76,10 +116,20 @@
     <div id="coinChip"><span class="coin-ic"></span><span id="coinNum">0</span></div>
   </div>
   <div id="sceneName">死亡大道</div>
-  <div id="verBadge">丧尸英语城 v3.0.0-m03</div>
+  <div id="verBadge">丧尸英语城 v3.0.0-m04</div>
+  <div id="waveBanner"></div>
+  <div id="hurtFx"></div>
   <div id="loadingTip">加载中...</div>
   <div id="toast"></div>
   <div id="enterBtn">🚪 进入</div>
+
+  <div id="defeatPanel">
+    <div class="d-card">
+      <h2>你被丧尸围困了…</h2>
+      <p>歇口气，单词就是你的武器（即将开放喊词施法）</p>
+      <button id="retryBtn">爬起来再战！</button>
+    </div>
+  </div>
 
   <div id="controls">
     <div class="dpad">
@@ -88,13 +138,16 @@
       <div class="ctl" id="btnD">▼</div>
       <div class="ctl" id="btnR">▶</div>
     </div>
-    <div class="cast-group">
-      <div class="cast" id="btnVoice"><span class="big">🎤</span>喊词</div>
-      <div class="cast" id="btnRune"><span class="big">✍️</span>画符</div>
+    <div class="right-col">
+      <div class="skill-row">
+        <div class="mini-cast" id="btnVoice"><span class="big">🎤</span>喊词</div>
+        <div class="mini-cast" id="btnRune"><span class="big">✍️</span>画符</div>
+      </div>
+      <div id="btnAttack"><span class="big">⚔️</span>砍击</div>
     </div>
   </div>
 
-  <script src="battle/city_assets.js?v=zcity-m03"></script>
-  <script src="battle/battle_engine.js?v=zcity-m03"></script>
+  <script src="battle/city_assets.js?v=zcity-m04e"></script>
+  <script src="battle/battle_engine.js?v=zcity-m04e"></script>
 </body>
 </html>
