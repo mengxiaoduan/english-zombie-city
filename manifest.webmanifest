@@ -1,0 +1,16 @@
+{
+  "name": "世界语言方块",
+  "short_name": "语言方块",
+  "description": "教育游戏：俄罗斯方块 / 填词大作战 / 单词闯关大冒险 三种模式",
+  "lang": "zh-CN",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1a1a2e",
+  "theme_color": "#1a1a2e",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
