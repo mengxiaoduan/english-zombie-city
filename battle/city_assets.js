@@ -21,7 +21,9 @@ window.ZCITY = window.ZCITY || {};
     hero: {
       run:  { seq: ['assets/warped_city/player/run-%d.png', 1, 8], fps: 13 },
       idle: { seq: ['assets/warped_city/player/idle-%d.png', 1, 4], fps: 6 },
-      hurt: { src: 'assets/warped_city/player/hurt.png', fps: 1 }
+      hurt: { src: 'assets/warped_city/player/hurt.png', fps: 1 },
+      shoot: { src: 'assets/warped_city/player/shoot.png', fps: 1 },
+      runShoot: { seq: ['assets/warped_city/player/run-shoot-%d.png', 1, 8], fps: 13 }
     },
     fx: {
       explosion: { seq: ['assets/warped_city/fx/enemy-explosion-%d.png', 1, 6], fps: 14 }

@@ -45,9 +45,10 @@ window.ZCITY = window.ZCITY || {};
   var ATK = { dmg: 25, reach: 66, arc: 42, cd: 0.42, dur: 0.16, lunge: 12 };
   var ZSTAT = {
     A: { hp: 50,  speed: 40, dmg: 12, coin: 3, dispH: 100, windup: 0.5,  interruptible: true },
-    B: { hp: 35,  speed: 88, dmg: 10, coin: 4, dispH: 92,  windup: 0.38, interruptible: true },
-    C: { hp: 130, speed: 30, dmg: 22, coin: 6, dispH: 128, windup: 0.55, interruptible: false }
+    B: { hp: 35,  speed: 70, dmg: 10, coin: 4, dispH: 92,  windup: 0.38, interruptible: true },
+    C: { hp: 130, speed: 30, dmg: 22, coin: 6, dispH: 128, windup: 0.55, interruptible: false }   // 坦克霸体：砍不断蓄力
   };
+  var STRIKE = { dur: 0.18, speed: 120 };   // 前扑滑动（替代瞬移）
 
   var canvas, ctx, dpr = 1;
   var view = { w: 0, h: 0, groundY: 0 };
@@ -131,8 +132,8 @@ window.ZCITY = window.ZCITY || {};
 
   /* ---------- 实体 ---------- */
   function makeHero(x) {
-    return { x: x, y: (bandTop() + bandBot()) / 2, face: 1, walkPhase: 0, moving: false,
-             hp: 100, hpMax: 100, invulnT: 0, atkCd: 0, atkT: 0 };
+    return { x: x, y: (bandTop() + bandBot()) / 2, face: 1, walkPhase: 0, idlePhase: 0, moving: false,
+             hp: 100, hpMax: 100, invulnT: 0, atkCd: 0, atkT: 0, spellPoseT: 0 };
   }
   function zStat(t) { return ZSTAT[t] || ZSTAT.A; }
   function spawnZombieNow(type, side) {
@@ -147,6 +148,7 @@ window.ZCITY = window.ZCITY || {};
       coin: st.coin + Math.floor((enc.block - 1) / 2),
       phase: Math.random() * 10, entering: true,
       windup: 0, atkCd: enc.block === 1 ? 2.0 : 1.2, atkT: 0, hurtT: 0, kb: 0, charWin: null,
+      strikeT: 0, strikeDir: 1,
       dead: false, deadT: 0,
       spell: SP ? SP.pickSpellKey() : '火'
     });
@@ -314,6 +316,8 @@ window.ZCITY = window.ZCITY || {};
       x: hero.x - camera.x + hero.face * 20, y: hero.y - 70,
       z: z, t: 0, dur: 0.45, dmg: dmg, doubled: doubled, hitBig: false
     });
+    hero.spellPoseT = 0.4;                                   // 施法姿势
+    hero.face = (z.x >= hero.x) ? 1 : -1;                   // 面向目标施法
     if (sp.kind === 'fire') S.fire();
     else if (sp.kind === 'water') S.water();
     else if (sp.kind === 'stone') S.stone();
@@ -488,17 +492,28 @@ window.ZCITY = window.ZCITY || {};
   }
   function drawHero(h) {
     var x = h.x - camera.x, y = h.y;
-    if (h.invulnT > 0 && Math.floor(h.invulnT * 14) % 2 === 0) return;
     drawShadow(x, y, 22);
-    var e = A.get('hero.run'), moving = h.moving;
+    // 无敌：半透明呼吸（不再整帧消失），刚受击 0.25s 用受击姿势
+    var alpha = 1;
+    if (h.invulnT > 0) alpha = Math.max(0.35, 0.62 + 0.25 * Math.sin(h.invulnT * 22));
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    var e = null, idx = 0;
+    if (h.invulnT > 0.7) {                                   // 刚受击：受击姿势
+      e = A.get('hero.hurt');
+    } else if (h.spellPoseT > 0 || h.atkT > 0) {             // 施法/攻击：持械姿势
+      if (h.moving) { e = A.get('hero.runShoot'); idx = Math.floor(h.walkPhase); }
+      else e = A.get('hero.shoot');
+    } else if (h.moving) {                                   // 跑动
+      e = A.get('hero.run'); idx = Math.floor(h.walkPhase);
+    } else {                                                 // 待机呼吸（4帧）
+      e = A.get('hero.idle'); idx = Math.floor(h.idlePhase || 0);
+    }
     var lean = h.atkT > 0 ? h.face * 6 : 0;
-    if (e && e.ok) {
-      var idx = moving ? Math.floor(h.walkPhase) : 0;
-      var ee = moving ? e : (A.get('hero.idle') || e);
-      A.drawFrame(ctx, ee, idx, x + lean, y, 108, h.face);
-    } else {
+    if (!e || !e.ok) {                                       // 兜底剪影
       ctx.save(); ctx.translate(x + lean, y); ctx.scale(h.face, 1);
-      var swing = Math.sin(h.walkPhase * Math.PI * 2) * (moving ? 1 : 0.12);
+      var swing = Math.sin(h.walkPhase * Math.PI * 2) * (h.moving ? 1 : 0.12);
       ctx.fillStyle = '#3a6ea8'; ctx.fillRect(-9 + 7 * swing, -22, 8, 22); ctx.fillRect(1 - 7 * swing, -22, 8, 22);
       ctx.fillStyle = '#e2574c'; ctx.fillRect(-10, -48, 20, 27);
       ctx.strokeStyle = '#ffd873'; ctx.lineWidth = 5; ctx.lineCap = 'round';
@@ -507,7 +522,10 @@ window.ZCITY = window.ZCITY || {};
       ctx.fillStyle = '#ffcf9e'; ctx.beginPath(); ctx.arc(0, -56, 9, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#2b2333'; ctx.fillRect(-9, -66, 18, 7);
       ctx.restore();
+    } else {
+      A.drawFrame(ctx, e, idx, x + lean, y, 108, h.face);
     }
+    ctx.restore();
     if (fx.slashT > 0) {
       var p = 1 - fx.slashT / ATK.dur;
       ctx.save();
@@ -741,8 +759,10 @@ window.ZCITY = window.ZCITY || {};
       hero.x = clamp(hero.x + vx * WALK.hero * dt, minX, maxX);
       hero.y = clamp(hero.y + vy * WALK.vert * dt, bandTop(), bandBot());
       if (hero.moving) hero.walkPhase += dt * 1.7;
+      else hero.idlePhase = (hero.idlePhase + dt * 1.4) % 4;
       if (hero.atkCd > 0) hero.atkCd -= rdt;
       if (hero.atkT > 0) hero.atkT -= rdt;
+      if (hero.spellPoseT > 0) hero.spellPoseT -= rdt;
       if (hero.invulnT > 0) hero.invulnT -= rdt;
 
       encTick(dt);
@@ -754,21 +774,26 @@ window.ZCITY = window.ZCITY || {};
         if (z.hurtT > 0) z.hurtT -= rdt;
         if (Math.abs(z.kb) > 4) { z.x += z.kb * dt; z.kb *= Math.max(0, 1 - 7 * dt); }
         var dx = hero.x - z.x, dy = hero.y - z.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
-        z.close = d < 50;
+        z.close = d < 46;
         if (z.entering) {
           var inX = camera.x + view.w * (z.x > camera.x + view.w / 2 ? 0.86 : 0.14);
           var edx = inX - z.x;
-          z.x += Math.sign(edx) * z.speed * 1.3 * dt;
+          z.x += Math.sign(edx) * z.speed * 1.15 * dt;
           z.phase += dt * 7;
-          if (Math.abs(edx) < 24) z.entering = false;
+          if (Math.abs(edx) < 24 || d < 70) z.entering = false;   // 就位或接近玩家即参战
+          continue;
+        }
+        if (z.strikeT > 0) {                                     // 前扑滑行（有动画的位移）
+          z.strikeT -= dt;
+          z.x += z.strikeDir * STRIKE.speed * dt;
+          if (z.strikeT <= 0) z.atkCd = enc.block === 1 ? 2.6 : 1.7;
           continue;
         }
         if (z.windup > 0) {
           z.windup -= dt;
           if (z.windup <= 0) {
-            z.x += Math.sign(dx) * 18;
+            z.strikeT = STRIKE.dur; z.strikeDir = Math.sign(dx) || 1;
             if (d < 62 && hero.invulnT <= 0) hurtPlayer(z.dmg, z.x);
-            z.atkCd = enc.block === 1 ? 2.6 : 1.7;          // 新手街攻击间隔放宽
           }
           continue;
         }
@@ -777,9 +802,13 @@ window.ZCITY = window.ZCITY || {};
         if (z.close) z.atkT += dt * 8;
         if (!z.close) {
           z.x += dx / d * z.speed * dt;
-          z.y += dy / d * z.speed * dt * 0.65;
+          z.y += dy / d * z.speed * dt * 0.5;
           z.y = clamp(z.y, bandTop(), bandBot());
           z.phase += dt * 7;
+        } else if (d < 30) {                                 // 过近贴脸：缓缓退开保持攻击距离
+          z.x -= dx / d * 26 * dt;
+          z.y -= dy / d * 26 * dt * 0.5;
+          z.y = clamp(z.y, bandTop(), bandBot());
         }
       }
       for (var a = 0; a < zombies.length; a++) {
