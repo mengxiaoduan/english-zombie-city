@@ -147,6 +147,23 @@ window.ZCITY = window.ZCITY || {};
 
   function get(key) { return store[key] || null; }
 
+  /* 生成着色变体：复制源精灵表并叠加颜色（'source-atop'）——医护白大褂/护士粉/店员绿裙等 */
+  function tintEntry(srcKey, dstKey, color, alpha) {
+    var src = store[srcKey];
+    if (!src || !src.ok) return false;
+    var cv = document.createElement('canvas');
+    cv.width = src.img.width || src.img.naturalWidth;
+    cv.height = src.img.height || src.img.naturalHeight;
+    var cx = cv.getContext('2d');
+    cx.drawImage(src.img, 0, 0);
+    cx.globalCompositeOperation = 'source-atop';
+    cx.globalAlpha = alpha == null ? 0.45 : alpha;
+    cx.fillStyle = color;
+    cx.fillRect(0, 0, cv.width, cv.height);
+    store[dstKey] = { img: cv, frames: src.frames, fw: src.fw, fh: src.fh, fps: src.fps, ok: true };
+    return true;
+  }
+
   /* 画一帧动画（自动水平翻转）。e=store条目, idx=帧序, x,y=脚底中心, dispH=显示高, face=1右/-1左 */
   function drawFrame(ctx, e, idx, x, y, dispH, face) {
     if (!e || !e.ok) return false;
@@ -162,5 +179,5 @@ window.ZCITY = window.ZCITY || {};
     return true;
   }
 
-  ZCITY.Assets = { MANIFEST: MANIFEST, load: load, get: get, drawFrame: drawFrame };
+  ZCITY.Assets = { MANIFEST: MANIFEST, load: load, get: get, drawFrame: drawFrame, tintEntry: tintEntry };
 })();

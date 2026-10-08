@@ -1,5 +1,6 @@
-/* 丧尸英语城 - 战斗引擎（M1 遭遇波次 + M2/M3 施法整合 + 无尽街区）
- * 引擎向施法模块暴露：zombies/hero/locked/toast/banner/spellStrike/micState
+/* 丧尸英语城 - 战斗引擎 v2（场景词汇教学版）
+ * 新增：医院场景(医护僵尸+Boss战) / 店员僵尸 / 食物补血与武器拾取(念词获得) /
+ *       双语建筑招牌 / 弱点卡英文释义 / Boss喊词技能(可躲避字弹)
  */
 window.ZCITY = window.ZCITY || {};
 (function () {
@@ -7,10 +8,19 @@ window.ZCITY = window.ZCITY || {};
   var A = ZCITY.Assets;
   var SP = ZCITY.Spells;
 
+  /* ---------- 拾取物品词表（食物回血/武器强化，走拼音拾取面板） ---------- */
+  var ITEMS = {
+    '水': { py: 'shuǐ', en: 'water',    kind: 'heal',   heal: 22, color: '#7ec8ff' },
+    '饭': { py: 'fàn',  en: 'rice',     kind: 'heal',   heal: 38, color: '#ffd873' },
+    '药': { py: 'yào',  en: 'medicine', kind: 'heal',   heal: 65, color: '#9ce89c' },
+    '棒': { py: 'bàng', en: 'club',     kind: 'weapon', bonus: 16, color: '#c9a86a' },
+    '刀': { py: 'dāo',  en: 'knife',    kind: 'weapon', bonus: 30, color: '#d8d8e8' }
+  };
+
   /* ---------- 街区模板（无尽递进） ---------- */
   var BLOCK_NAMES = ['死亡大道', '霓虹巷', '地铁废墟', '医院外墙', '码头栈桥'];
   function makeZones(block) {
-    var ex = block - 1;                     // 递进强度
+    var ex = block - 1;
     var z = [
       { x: 360,  waves: [[['A', 'R', 0.6], ['A', 'R', 2.0]]] },
       { x: 800,  waves: [[['A', 'R', 0.6], ['B', 'R', 1.6], ['A', 'R', 2.8]]] },
@@ -26,40 +36,72 @@ window.ZCITY = window.ZCITY || {};
     }
     return z;
   }
+  /* 医院遭遇：护士快刀→医生坦克→Boss */
+  var HOSPITAL_ZONES = [
+    { x: 260, waves: [[['NUR', 'R', 0.6], ['NUR', 'R', 1.8]]] },
+    { x: 560, waves: [[['DOC', 'R', 0.6], ['NUR', 'L', 1.6], ['DOC', 'R', 2.8]]] },
+    { x: 760, waves: [[['BOSS', 'R', 1.0]]] }                // Boss 房
+  ];
+  var STORE_ZONES = [
+    { x: 300, waves: [[['CLR', 'R', 0.6], ['CLR', 'L', 1.8]]] }
+  ];
 
   var SCENES = {
     street: {
       id: 'street', name: '第1街区 · 死亡大道', worldW: 1700, indoor: false,
-      spawn: { x: 140 }, doors: [{ x: 1560, label: '进入便利店', to: 'store', backX: 1500, w: 58 }]
+      spawn: { x: 140 }, zones: null,
+      doors: [
+        { x: 1380, label: '进入医院', to: 'hospital', backX: 120, w: 58 },
+        { x: 1560, label: '进入便利店', to: 'store', backX: 1500, w: 58 }
+      ]
+    },
+    hospital: {
+      id: 'hospital', name: '仁爱医院 · 病房区', worldW: 900, indoor: true,
+      spawn: { x: 100 }, zones: HOSPITAL_ZONES,
+      doors: [
+        { x: 60, label: '回到街道', to: 'street', backX: 1350, w: 54 }
+      ],
+      bossDoor: { x: 860, label: '深入下一街区', to: 'street', backX: 140, w: 60, next: true }
     },
     store: {
-      id: 'store', name: '便利店 · 安全屋', worldW: 780, indoor: true,
-      spawn: { x: 150 }, doors: [
-        { x: 90, label: '回到街道', to: 'street', backX: 1500, w: 54 },
-        { x: 690, label: '深入下一街区', to: 'street', backX: 140, w: 60, next: true }
+      id: 'store', name: '便利店 · 补给站', worldW: 780, indoor: true,
+      spawn: { x: 100 }, zones: STORE_ZONES,
+      doors: [
+        { x: 60, label: '回到街道', to: 'street', backX: 1540, w: 54 },
+        { x: 700, label: '深入下一街区', to: 'street', backX: 140, w: 60, next: true }
       ]
     }
   };
 
+  /* 街道装饰招牌（认知建筑词汇，纯展示） */
+  var BILLBOARDS = [
+    { x: 520,  en: 'HOTEL',  zh: '酒店' }, { x: 700,  en: 'BANK',  zh: '银行' },
+    { x: 940,  en: 'POLICE', zh: '警局' }, { x: 1120, en: 'CAFE',  zh: '咖啡店' }
+  ];
+
   var WALK = { hero: 225, vert: 150, bandTop: 24, bandBot: 12 };
   var ATK = { dmg: 25, reach: 66, arc: 42, cd: 0.42, dur: 0.16, lunge: 12 };
   var ZSTAT = {
-    A: { hp: 50,  speed: 40, dmg: 12, coin: 3, dispH: 100, windup: 0.5,  interruptible: true },
-    B: { hp: 35,  speed: 70, dmg: 10, coin: 4, dispH: 92,  windup: 0.38, interruptible: true },
-    C: { hp: 130, speed: 30, dmg: 22, coin: 6, dispH: 128, windup: 0.55, interruptible: false }   // 坦克霸体：砍不断蓄力
+    A:   { hp: 50,  speed: 40, dmg: 12, coin: 3,  dispH: 100, windup: 0.5,  interruptible: true, anim: 'A' },
+    B:   { hp: 35,  speed: 70, dmg: 10, coin: 4,  dispH: 92,  windup: 0.38, interruptible: true, anim: 'B' },
+    C:   { hp: 130, speed: 30, dmg: 22, coin: 6,  dispH: 128, windup: 0.55, interruptible: false, anim: 'C' },
+    DOC: { hp: 60,  speed: 34, dmg: 14, coin: 4,  dispH: 104, windup: 0.5,  interruptible: true, anim: 'DOC' },
+    NUR: { hp: 40,  speed: 78, dmg: 10, coin: 4,  dispH: 92,  windup: 0.36, interruptible: true, anim: 'NUR' },
+    CLR: { hp: 45,  speed: 44, dmg: 10, coin: 4,  dispH: 98,  windup: 0.5,  interruptible: true, anim: 'CLR' },
+    BOSS:{ hp: 600, speed: 24, dmg: 28, coin: 40, dispH: 210, windup: 0.7,  interruptible: false, anim: 'BOSS' }
   };
-  var STRIKE = { dur: 0.18, speed: 120 };   // 前扑滑动（替代瞬移）
+  var STRIKE = { dur: 0.18, speed: 120 };
 
   var canvas, ctx, dpr = 1;
   var view = { w: 0, h: 0, groundY: 0 };
-  var scene, hero, zombies, camera, trans = { a: 0, phase: 0, cb: null };
+  var scene, hero, zombies, items, camera, trans = { a: 0, phase: 0, cb: null };
   var keys = { left: false, right: false, up: false, down: false };
   var running = false, lastT = 0, rafId = 0;
   var hud = {}, coinsCount = 0, coinPop = 0, nearDoor = null, toastTimer = 0;
 
   var fx = {
     hitstop: 0, shakeT: 0, shakeMag: 0, shakeDur: 0.3,
-    dmgNums: [], coins: [], slashT: 0, spells: [], parts: [],
+    dmgNums: [], coins: [], slashT: 0, spells: [], parts: [], bossSpells: [],
     combo: 0, comboT: 0, comboPop: 0
   };
   var enc = { block: 1, zones: makeZones(1), zoneIdx: 0, phase: 'calm', waveIdx: 0,
@@ -115,7 +157,9 @@ window.ZCITY = window.ZCITY || {};
     water: function () { tone(900, 0.3, 'sine', 0.14, 300); noise(0.2, 0.1, 3000); },
     stone: function () { tone(80, 0.2, 'square', 0.2, 40); noise(0.25, 0.2, 400); },
     rock:  function () { tone(60, 0.3, 'square', 0.24, 30); noise(0.35, 0.24, 300); },
-    magic: function () { tone(880, 0.12, 'triangle', 0.1, 1320); tone(1320, 0.2, 'triangle', 0.08, 1760); }
+    magic: function () { tone(880, 0.12, 'triangle', 0.1, 1320); tone(1320, 0.2, 'triangle', 0.08, 1760); },
+    heal:  function () { tone(660, 0.18, 'sine', 0.12, 990); setTimeout(function () { tone(880, 0.22, 'sine', 0.1); }, 140); },
+    boss:  function () { tone(90, 0.5, 'sawtooth', 0.18, 45); tone(45, 0.7, 'square', 0.14, 30); }
   };
 
   /* ---------- 画布 ---------- */
@@ -133,9 +177,12 @@ window.ZCITY = window.ZCITY || {};
   /* ---------- 实体 ---------- */
   function makeHero(x) {
     return { x: x, y: (bandTop() + bandBot()) / 2, face: 1, walkPhase: 0, idlePhase: 0, moving: false,
-             hp: 100, hpMax: 100, invulnT: 0, atkCd: 0, atkT: 0, spellPoseT: 0 };
+             hp: 100, hpMax: 100, invulnT: 0, atkCd: 0, atkT: 0, spellPoseT: 0,
+             weapon: null };
   }
   function zStat(t) { return ZSTAT[t] || ZSTAT.A; }
+  function atkDmg() { return ATK.dmg + (hero.weapon ? hero.weapon.bonus : 0); }
+
   function spawnZombieNow(type, side) {
     var st = zStat(type);
     var sx = side === 'L' ? camera.x - 60 - Math.random() * 80
@@ -143,16 +190,18 @@ window.ZCITY = window.ZCITY || {};
     var tm = tierMul();
     zombies.push({
       type: type, x: sx, y: bandTop() + 24 + Math.random() * (bandBot() - bandTop() - 48),
-      hp: Math.round(st.hp * tm), hpMax: Math.round(st.hp * tm),
+      hp: Math.round(st.hp * (type === 'BOSS' ? (1 + 0.25 * (enc.block - 1)) : tm)),
+      hpMax: Math.round(st.hp * (type === 'BOSS' ? (1 + 0.25 * (enc.block - 1)) : tm)),
       dispH: st.dispH, speed: st.speed, dmg: st.dmg + (enc.block - 1) * 2,
       coin: st.coin + Math.floor((enc.block - 1) / 2),
       phase: Math.random() * 10, entering: true,
       windup: 0, atkCd: enc.block === 1 ? 2.0 : 1.2, atkT: 0, hurtT: 0, kb: 0, charWin: null,
       strikeT: 0, strikeDir: 1,
+      bossT: 5.5, shout: null, shoutT: 0,           // Boss 技能
       dead: false, deadT: 0,
       spell: SP ? SP.pickSpellKey() : '火'
     });
-    S.wave();
+    if (type === 'BOSS') S.boss(); else S.wave();
   }
 
   /* ---------- 遭遇编排 ---------- */
@@ -161,10 +210,11 @@ window.ZCITY = window.ZCITY || {};
     enc.waveIdx = 0;
     enc.lockCam = clamp(z.x - view.w * 0.42, 0, Math.max(0, scene.worldW - view.w));
     scheduleWave(0);
-    banner('⚠ 遭遇丧尸', '#ffd873');
-    if (!enc.tutDone) {
+    var isBoss = z.waves[0][0][0] === 'BOSS';
+    banner(isBoss ? '☠ BOSS · 巨型医生僵尸' : '⚠ 遭遇丧尸', isBoss ? '#ff6b5c' : '#ffd873');
+    if (!enc.tutDone && !isBoss) {
       enc.tutDone = true;
-      setTimeout(function () { showToast('🎯 僵尸头顶有汉字弱点', 2200); }, 700);
+      setTimeout(function () { showToast('🎯 僵尸头顶有汉字弱点（附英文）', 2200); }, 700);
       setTimeout(function () { showToast('🎤 点喊词读出它 → 释放法术', 2200); }, 3100);
       setTimeout(function () { showToast('✍️ 再画符 → 双倍伤害！', 2200); }, 5500);
     }
@@ -178,7 +228,7 @@ window.ZCITY = window.ZCITY || {};
     return enc.queue.length === 0 && zombies.every(function (z) { return z.dead; });
   }
   function encTick(dt) {
-    if (scene.indoor) return;
+    if (!enc.zones) return;
     if (enc.phase === 'calm' && enc.zoneIdx < enc.zones.length) {
       if (hero.x >= enc.zones[enc.zoneIdx].x) beginZone(enc.zones[enc.zoneIdx]);
     }
@@ -198,14 +248,20 @@ window.ZCITY = window.ZCITY || {};
         enc.waveIdx++;
         banner('第二波来袭！', '#ff9c6b');
       } else {
+        var wasBoss = zone.waves[zone.waves.length - 1][0][0] === 'BOSS';
         enc.phase = 'clear'; enc.lockCam = -1;
         hero.hp = Math.min(hero.hpMax, hero.hp + 12);
-        coinsCount += 5; coinPop = 0.3;
-        banner('✔ 区域肃清  +5金币', '#9ce89c');
+        coinsCount += wasBoss ? 40 : 5; coinPop = 0.3;
+        banner(wasBoss ? '👑 BOSS 击破！ +40金币' : '✔ 区域肃清  +5金币', wasBoss ? '#ffb02e' : '#9ce89c');
         S.clear();
         if (enc.zoneIdx >= enc.zones.length - 1) {
           enc.allClear = true;
-          setTimeout(function () { showToast('街区已肃清！便利店补给 🚪 或深入下一街区 →', 3000); }, 1500);
+          if (wasBoss) {
+            if (scene.bossDoor) scene.doors.push(scene.bossDoor);   // 击败Boss开启下一街区门
+            setTimeout(function () { showToast('医院净化完成！右侧之门已开启 →', 3000); }, 1400);
+          } else if (scene.id === 'street') {
+            setTimeout(function () { showToast('街区已肃清！医院 🏥 或便利店 🏪 补给', 3000); }, 1400);
+          }
         }
       }
     }
@@ -215,7 +271,7 @@ window.ZCITY = window.ZCITY || {};
     }
   }
 
-  /* ---------- 下一街区（无尽循环） ---------- */
+  /* ---------- 下一街区 ---------- */
   function nextBlock() {
     enc.block++;
     enc.zones = makeZones(enc.block);
@@ -225,6 +281,54 @@ window.ZCITY = window.ZCITY || {};
     SCENES.street.name = '第' + enc.block + '街区 · ' + nm;
     if (hud.scene) hud.scene.textContent = SCENES.street.name;
     banner('第' + enc.block + '街区 · ' + nm + '（难度+' + Math.round((tierMul() - 1) * 100) + '%）', '#cbb8ff');
+  }
+
+  /* ---------- 物品（食物/武器，念词拾取） ---------- */
+  function makeItems() {
+    items = [];
+    if (scene.id === 'hospital') {
+      items.push({ ch: '水', x: 420 }, { ch: '药', x: 660 });
+    } else if (scene.id === 'store') {
+      items.push({ ch: '饭', x: 380 }, { ch: '水', x: 460 }, { ch: '棒', x: 520 }, { ch: '刀', x: 580 });
+    }
+  }
+  function nearItem() {
+    for (var i = 0; i < items.length; i++) {
+      if (Math.abs(items[i].x - hero.x) < 46) return items[i];
+    }
+    return null;
+  }
+  function applyItem(ch) {
+    var it = ITEMS[ch];
+    if (!it) return;
+    if (it.kind === 'heal') {
+      hero.hp = Math.min(hero.hpMax, hero.hp + it.heal);
+      fx.dmgNums.push({ x: hero.x, y: hero.y - 110, txt: '+' + it.heal, t: 0.9, color: '#9ce89c' });
+      S.heal();
+      showToast('🍜 ' + ch + ' ' + it.en + ' · 回血 ' + it.heal, 1800);
+    } else if (it.kind === 'weapon') {
+      if (hero.weapon && hero.weapon.bonus >= it.bonus) {
+        showToast('已有更强的 ' + hero.weapon.ch + '，不换了');
+        return false;                                        // 不消耗
+      }
+      hero.weapon = { ch: ch, bonus: it.bonus };
+      S.magic();
+      showToast('🗡 获得 ' + ch + ' ' + it.en + ' · 攻击 +' + it.bonus, 2200);
+    }
+    return true;
+  }
+  function tryPickup(it) {
+    var info = ITEMS[it.ch];
+    ZCITY.Voice.openPanel('念词拾取', {
+      forcedChar: it.ch, mode: 'pickup',
+      onPickup: function (ch) {
+        if (applyItem(ch)) {
+          var idx = items.indexOf(it);
+          if (idx >= 0) items.splice(idx, 1);
+        }
+      }
+    });
+    void info;
   }
 
   /* ---------- 战斗 ---------- */
@@ -237,14 +341,15 @@ window.ZCITY = window.ZCITY || {};
     for (var i = 0; i < zombies.length; i++) {
       var z = zombies[i];
       if (z.dead) continue;
+      if (z.type === 'BOSS' && z.entering) continue;         // Boss 入场演出期免疫
       var dx = (z.x - hero.x) * hero.face;
       if (dx > -10 && dx < ATK.reach && Math.abs(z.y - hero.y) < ATK.arc) {
-        z.hp -= ATK.dmg;
+        z.hp -= atkDmg();
         z.hurtT = 0.16;
         z.kb = hero.face * 150 * (zStat(z.type).interruptible ? 1 : 0.35);
         if (zStat(z.type).interruptible) z.windup = 0;
         hitAny = true;
-        fx.dmgNums.push({ x: z.x, y: z.y - z.dispH - 14, txt: String(ATK.dmg), t: 0.7 });
+        fx.dmgNums.push({ x: z.x, y: z.y - z.dispH - 14, txt: String(atkDmg()), t: 0.7 });
         if (z.hp <= 0) killZombie(z);
       }
     }
@@ -295,8 +400,7 @@ window.ZCITY = window.ZCITY || {};
     defeated = false;
     hero.hp = hero.hpMax; hero.invulnT = 1.6;
     zombies.length = 0; enc.queue.length = 0;
-    if (enc.allClear || enc.phase === 'clear') {
-      // 已肃清后的意外死亡：原地复活即可
+    if (enc.allClear || enc.phase === 'clear' || !enc.zones) {
       enc.lockCam = -1;
       banner('重新出发', '#ffd873');
       return;
@@ -308,16 +412,15 @@ window.ZCITY = window.ZCITY || {};
     banner('再战！', '#ffd873');
   }
 
-  /* ---------- 法术（spell_cast 回调） ---------- */
+  /* ---------- 法术 ---------- */
   function spellStrike(z, ch, sp, dmg, doubled, action) {
-    // 从主角发出的"字弹"追踪目标
     fx.spells.push({
       ch: ch, color: sp.color, kind: sp.kind,
       x: hero.x - camera.x + hero.face * 20, y: hero.y - 70,
       z: z, t: 0, dur: 0.45, dmg: dmg, doubled: doubled, hitBig: false
     });
-    hero.spellPoseT = 0.4;                                   // 施法姿势
-    hero.face = (z.x >= hero.x) ? 1 : -1;                   // 面向目标施法
+    hero.spellPoseT = 0.4;
+    hero.face = (z.x >= hero.x) ? 1 : -1;
     if (sp.kind === 'fire') S.fire();
     else if (sp.kind === 'water') S.water();
     else if (sp.kind === 'stone') S.stone();
@@ -328,10 +431,11 @@ window.ZCITY = window.ZCITY || {};
   function spellHit(p) {
     var z = p.z;
     if (!z || z.dead) return;
+    if (z.type === 'BOSS' && z.entering) return;             // Boss 入场演出期免疫法术
     z.hp -= p.dmg;
     z.hurtT = 0.22;
-    z.windup = 0;                                        // 法术打断蓄力（含C——法术特权）
-    z.kb = (z.x >= hero.x ? 1 : -1) * (p.doubled ? 220 : 110) * (z.type === 'C' ? 0.4 : 1);
+    z.windup = 0;
+    z.kb = (z.x >= hero.x ? 1 : -1) * (p.doubled ? 220 : 110) * (z.type === 'C' || z.type === 'BOSS' ? 0.4 : 1);
     fx.dmgNums.push({
       x: z.x, y: z.y - z.dispH - 22, txt: (p.doubled ? '双倍 ' : '') + p.dmg,
       t: 0.9, big: p.doubled, color: p.color
@@ -340,7 +444,6 @@ window.ZCITY = window.ZCITY || {};
     fx.hitstop = p.doubled ? 0.11 : 0.06;
     if (p.doubled) { fx.shakeT = 0.32; fx.shakeMag = 6; fx.shakeDur = 0.32; }
     fx.combo++; fx.comboT = 2.5; fx.comboPop = 1;
-    // 法术冲击波：全场僵尸震慑（施法者获得喘息——学习节奏保护）
     zombies.forEach(function (o) {
       if (o === z || o.dead || o.entering) return;
       o.hurtT = Math.max(o.hurtT, 0.3);
@@ -358,23 +461,88 @@ window.ZCITY = window.ZCITY || {};
     }
   }
 
+  /* ---------- Boss 技能（喊词 → 字弹攻击，可上下走位躲避） ---------- */
+  function bossTick(z, dt) {
+    if (z.dead || z.entering) return;
+    z.bossT -= dt;
+    if (z.bossT <= 0 && !z.shout) {
+      var keys2 = Object.keys(SP.SPELLS);
+      z.shout = keys2[Math.floor(Math.random() * keys2.length)];
+      z.shoutT = 1.2;
+      z.bossT = 8 + Math.random() * 3;
+      S.wave();
+    }
+    if (z.shout) {
+      z.shoutT -= dt;
+      if (z.shoutT <= 0) {
+        // 发射 Boss 字弹：飞向主角当前位置（发射瞬间快照，可走位躲开）
+        var sp = SP.SPELLS[z.shout];
+        fx.bossSpells.push({
+          ch: z.shout, color: sp.color,
+          x: z.x - camera.x, y: z.y - z.dispH * 0.6,
+          tx: hero.x - camera.x, ty: hero.y - 46,
+          t: 0, dur: 1.5, dmg: 20
+        });
+        if (sp.kind === 'fire') S.fire(); else if (sp.kind === 'water') S.water(); else S.stone();
+        z.shout = null;
+      }
+    }
+  }
+  function drawBossSpells(dt) {
+    for (var i = fx.bossSpells.length - 1; i >= 0; i--) {
+      var p = fx.bossSpells[i];
+      p.t += dt / p.dur;
+      var k = Math.min(1, p.t);
+      var x = p.x + (p.tx - p.x) * k;
+      var y = p.y + (p.ty - p.y) * k - Math.sin(k * Math.PI) * 90;
+      ctx.save();
+      ctx.font = 'bold 44px "Microsoft YaHei", serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.shadowColor = p.color; ctx.shadowBlur = 20;
+      ctx.fillStyle = p.color;
+      ctx.fillText(p.ch, x, y);
+      ctx.restore();
+      if (Math.random() < 0.4) fx.parts.push({ x: x, y: y, vx: (Math.random() - 0.5) * 30, vy: (Math.random() - 0.5) * 30,
+        t: 0.35, color: p.color, r: 2 + Math.random() * 2 });
+      // 命中判定（屏幕坐标 vs 主角屏幕坐标）
+      var hx = hero.x - camera.x, hy = hero.y - 46;
+      if (Math.abs(x - hx) < 26 && Math.abs(y - hy) < 46) {
+        fx.bossSpells.splice(i, 1);
+        if (hero.invulnT <= 0) hurtPlayer(p.dmg, p.x + camera.x);
+        continue;
+      }
+      if (k >= 1) fx.bossSpells.splice(i, 1);
+    }
+  }
+
   /* ---------- 场景切换 ---------- */
   function enterScene(id, backX, viaDoor) {
     scene = SCENES[id];
     zombies.length = 0; enc.queue.length = 0;
+    fx.bossSpells.length = 0;
     if (viaDoor && viaDoor.next) nextBlock();
-    if (id === 'street' && enc.allClear) enc.phase = 'clear';
+    if (id === 'street') {
+      enc.zones = makeZones(enc.block);
+      if (enc.allClear) enc.phase = 'clear';
+      else enc.phase = 'calm';
+      enc.zoneIdx = 0; enc.waveIdx = 0;
+    } else {
+      enc.zones = scene.zones;
+      enc.phase = 'calm'; enc.zoneIdx = 0; enc.waveIdx = 0; enc.allClear = false;
+      // 重置医院 Boss 门（每轮重新挑战）
+      if (scene.bossDoor) {
+        scene.doors = scene.doors.filter(function (d) { return d !== scene.bossDoor; });
+      }
+    }
     hero.x = backX != null ? backX : scene.spawn.x;
     hero.y = (bandTop() + bandBot()) / 2;
     camera.x = clamp(hero.x - view.w * 0.38, 0, Math.max(0, scene.worldW - view.w));
-    if (id === 'street' && !enc.allClear && enc.phase === 'active') {
-      enc.lockCam = clamp(enc.zones[enc.zoneIdx].x - view.w * 0.42, 0, Math.max(0, scene.worldW - view.w));
-      scheduleWave(enc.waveIdx);
-    }
+    makeItems();
     nearDoor = null;
     document.getElementById('enterBtn').style.display = 'none';
     if (hud.scene) hud.scene.textContent = scene.name;
-    if (id === 'store') { hero.hp = hero.hpMax; showToast('🛒 便利店安全 · 血量全满', 1800); }
+    if (id === 'store') showToast('🏪 击退店员僵尸后可搜刮补给', 2000);
+    if (id === 'hospital') showToast('🏥 院内有效尸化医护，小心', 2000);
   }
   function startTransition(cb) {
     if (trans.phase !== 0) return;
@@ -407,6 +575,24 @@ window.ZCITY = window.ZCITY || {};
       drew++;
     }
     if (!drew) { ctx.fillStyle = '#241d2b'; ctx.fillRect(0, view.groundY - 220, view.w, 220); }
+    // 装饰招牌：中英双语（建筑词汇认知）
+    ctx.save();
+    ctx.textAlign = 'center';
+    for (var b = 0; b < BILLBOARDS.length; b++) {
+      var bb = BILLBOARDS[b];
+      var bx = bb.x - camX;
+      if (bx < -90 || bx > view.w + 90) continue;
+      var by = view.groundY - 235 + Math.sin(b * 2.7) * 8;
+      ctx.fillStyle = b % 2 ? 'rgba(60,140,190,0.85)' : 'rgba(190,80,70,0.85)';
+      if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(bx - 52, by, 104, 44, 6); ctx.fill(); }
+      else ctx.fillRect(bx - 52, by, 104, 44);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 15px monospace';
+      ctx.fillText(bb.en, bx, by + 19);
+      ctx.font = '12px "Microsoft YaHei", sans-serif';
+      ctx.fillText(bb.zh, bx, by + 36);
+    }
+    ctx.restore();
     ctx.fillStyle = '#2a2438'; ctx.fillRect(0, view.groundY, view.w, view.h - view.groundY);
     ctx.fillStyle = '#4a4060'; ctx.fillRect(0, view.groundY, view.w, 4);
     var dashY = view.groundY + (view.h - view.groundY) * 0.55;
@@ -414,12 +600,52 @@ window.ZCITY = window.ZCITY || {};
     var dashOff = -(camX % 90);
     for (var dx = dashOff; dx < view.w; dx += 90) ctx.fillRect(dx, dashY, 44, 3);
   }
+  function drawHospitalBg(camX) {
+    var wall = ctx.createLinearGradient(0, 0, 0, view.groundY);
+    wall.addColorStop(0, '#1e2a30'); wall.addColorStop(1, '#2e4048');
+    ctx.fillStyle = wall;
+    ctx.fillRect(0, 0, view.w, view.groundY);
+    // 墙裙 + 病房元素（世界坐标）
+    ctx.fillStyle = '#3a5a5a';
+    ctx.fillRect(0, view.groundY - 70, view.w, 70);
+    for (var s = 160; s < scene.worldW; s += 300) {
+      var sx = s - camX;
+      if (sx < -220 || sx > view.w + 220) continue;
+      // 病床
+      ctx.fillStyle = '#5a7a8a'; ctx.fillRect(sx, view.groundY - 44, 130, 18);
+      ctx.fillStyle = '#e8e8e8'; ctx.fillRect(sx + 6, view.groundY - 48, 40, 10);
+      ctx.fillStyle = '#3a4a5a';
+      ctx.fillRect(sx - 6, view.groundY - 26, 8, 26); ctx.fillRect(sx + 128, view.groundY - 26, 8, 26);
+      // 输液架
+      ctx.strokeStyle = '#8aa8b8'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(sx + 165, view.groundY); ctx.lineTo(sx + 165, view.groundY - 120);
+      ctx.lineTo(sx + 195, view.groundY - 120); ctx.stroke();
+      ctx.fillStyle = 'rgba(180,220,200,0.7)'; ctx.fillRect(sx + 188, view.groundY - 112, 12, 22);
+      // 红十字（世界认知：医院）
+      if (s % 600 === 160) {
+        ctx.fillStyle = '#e2574c';
+        ctx.fillRect(sx + 60 - 40, view.groundY - 210, 80, 26);
+        ctx.fillRect(sx + 60 - 27, view.groundY - 223, 54, 52);
+      }
+    }
+    // 地板（净色格）
+    ctx.fillStyle = '#3a4a48';
+    ctx.fillRect(0, view.groundY, view.w, view.h - view.groundY);
+    ctx.strokeStyle = 'rgba(180,210,210,0.14)'; ctx.lineWidth = 1;
+    var tile = 52, oy = (camX % tile);
+    for (var gx = -oy; gx < view.w; gx += tile) {
+      ctx.beginPath(); ctx.moveTo(gx, view.groundY); ctx.lineTo(gx - 30, view.h); ctx.stroke();
+    }
+    for (var gy = view.groundY + 20; gy < view.h; gy += 28) {
+      ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(view.w, gy); ctx.stroke();
+    }
+  }
   function drawStoreBg(camX) {
     var wall = ctx.createLinearGradient(0, 0, 0, view.groundY);
     wall.addColorStop(0, '#1c2430'); wall.addColorStop(1, '#2c3a48');
     ctx.fillStyle = wall;
     ctx.fillRect(0, 0, view.w, view.groundY);
-    for (var s = 120; s < scene.worldW; s += 230) {
+    for (var s = 140; s < scene.worldW; s += 230) {
       var sx = s - camX;
       if (sx < -160 || sx > view.w + 160) continue;
       ctx.fillStyle = '#3d4f60'; ctx.fillRect(sx, view.groundY - 150, 150, 110);
@@ -449,24 +675,34 @@ window.ZCITY = window.ZCITY || {};
   }
   function drawDoor(d) {
     var x = d.x - camera.x;
-    if (x < -80 || x > view.w + 80) return;
-    var dw = d.w || 56, dh = 88, top = view.groundY - dh;
+    if (x < -90 || x > view.w + 90) return;
+    var dw = d.w || 56, dh = 96, top = view.groundY - dh;
     ctx.save();
     ctx.fillStyle = '#191420';
     ctx.fillRect(x - dw / 2, top, dw, dh);
-    ctx.strokeStyle = d.next ? '#7ec8ff' : '#ffd873'; ctx.lineWidth = 3;
+    var isHosp = d.to === 'hospital';
+    ctx.strokeStyle = d.next ? '#7ec8ff' : (isHosp ? '#ff8a8a' : '#ffd873'); ctx.lineWidth = 3;
     ctx.strokeRect(x - dw / 2, top, dw, dh);
     var g = ctx.createLinearGradient(0, top, 0, view.groundY);
-    g.addColorStop(0, d.next ? 'rgba(120,190,255,0.55)' : 'rgba(255,190,90,0.55)');
-    g.addColorStop(1, d.next ? 'rgba(60,120,255,0.12)' : 'rgba(255,120,60,0.12)');
+    g.addColorStop(0, d.next ? 'rgba(120,190,255,0.55)' : isHosp ? 'rgba(255,140,130,0.5)' : 'rgba(255,190,90,0.55)');
+    g.addColorStop(1, 'rgba(60,60,80,0.12)');
     ctx.fillStyle = g;
     ctx.fillRect(x - dw / 2 + 3, top + 3, dw - 6, dh - 6);
-    ctx.fillStyle = d.next ? '#a8d8ff' : '#ffe28a';
-    ctx.font = 'bold 13px "Microsoft YaHei", sans-serif';
+    // 门顶双语招牌
+    var en = d.next ? 'NEXT BLOCK' : isHosp ? 'HOSPITAL' : 'MART';
+    ctx.fillStyle = isHosp ? '#e2574c' : d.next ? '#2a5a8a' : '#8a5a2a';
+    ctx.fillRect(x - dw / 2 - 10, top - 30, dw + 20, 26);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px monospace';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillRect(x - dw / 2 - 8, top - 24, dw + 16, 20);
-    ctx.fillStyle = d.next ? '#1a3a5a' : '#5a2a10';
-    ctx.fillText(d.label.replace(/^(进入|回到|深入)/, ''), x, top - 14);
+    ctx.fillText(en, x, top - 22);
+    ctx.font = 'bold 12px "Microsoft YaHei", sans-serif';
+    ctx.fillText(d.label.replace(/^(进入|回到|深入)/, ''), x, top - 8);
+    if (isHosp) {                                            // 门上红十字
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(x - 4, top + 16, 8, 22);
+      ctx.fillRect(x - 10, top + 23, 20, 8);
+    }
     ctx.restore();
   }
   function drawBarricades() {
@@ -493,25 +729,19 @@ window.ZCITY = window.ZCITY || {};
   function drawHero(h) {
     var x = h.x - camera.x, y = h.y;
     drawShadow(x, y, 22);
-    // 无敌：半透明呼吸（不再整帧消失），刚受击 0.25s 用受击姿势
     var alpha = 1;
     if (h.invulnT > 0) alpha = Math.max(0.35, 0.62 + 0.25 * Math.sin(h.invulnT * 22));
     ctx.save();
     ctx.globalAlpha = alpha;
-
     var e = null, idx = 0;
-    if (h.invulnT > 0.7) {                                   // 刚受击：受击姿势
-      e = A.get('hero.hurt');
-    } else if (h.spellPoseT > 0 || h.atkT > 0) {             // 施法/攻击：持械姿势
+    if (h.invulnT > 0.7) { e = A.get('hero.hurt'); }
+    else if (h.spellPoseT > 0 || h.atkT > 0) {
       if (h.moving) { e = A.get('hero.runShoot'); idx = Math.floor(h.walkPhase); }
       else e = A.get('hero.shoot');
-    } else if (h.moving) {                                   // 跑动
-      e = A.get('hero.run'); idx = Math.floor(h.walkPhase);
-    } else {                                                 // 待机呼吸（4帧）
-      e = A.get('hero.idle'); idx = Math.floor(h.idlePhase || 0);
-    }
+    } else if (h.moving) { e = A.get('hero.run'); idx = Math.floor(h.walkPhase); }
+    else { e = A.get('hero.idle'); idx = Math.floor(h.idlePhase || 0); }
     var lean = h.atkT > 0 ? h.face * 6 : 0;
-    if (!e || !e.ok) {                                       // 兜底剪影
+    if (!e || !e.ok) {
       ctx.save(); ctx.translate(x + lean, y); ctx.scale(h.face, 1);
       var swing = Math.sin(h.walkPhase * Math.PI * 2) * (h.moving ? 1 : 0.12);
       ctx.fillStyle = '#3a6ea8'; ctx.fillRect(-9 + 7 * swing, -22, 8, 22); ctx.fillRect(1 - 7 * swing, -22, 8, 22);
@@ -525,28 +755,42 @@ window.ZCITY = window.ZCITY || {};
     } else {
       A.drawFrame(ctx, e, idx, x + lean, y, 108, h.face);
     }
+    // 武器可视（持棒/刀时手侧绘制）
+    if (h.weapon && h.weapon.ch === '棒') {
+      ctx.save(); ctx.translate(x + h.face * 14, y - 40); ctx.rotate(h.face * 0.5);
+      ctx.fillStyle = '#8a6a3a'; ctx.fillRect(-3, -26, 6, 34);
+      ctx.fillStyle = '#c9a86a'; ctx.fillRect(-3, -30, 6, 8);
+      ctx.restore();
+    } else if (h.weapon && h.weapon.ch === '刀') {
+      ctx.save(); ctx.translate(x + h.face * 15, y - 44); ctx.rotate(h.face * -0.3);
+      ctx.fillStyle = '#d8d8e8'; ctx.beginPath();
+      ctx.moveTo(0, -30); ctx.lineTo(5, 4); ctx.lineTo(-2, 6); ctx.lineTo(-4, -26); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#8a5a2a'; ctx.fillRect(-6, 4, 12, 4);
+      ctx.restore();
+    }
     ctx.restore();
     if (fx.slashT > 0) {
       var p = 1 - fx.slashT / ATK.dur;
       ctx.save();
       ctx.translate(x, y - 52); ctx.scale(h.face, 1);
-      ctx.strokeStyle = 'rgba(255,240,190,' + (1 - p) + ')';
-      ctx.lineWidth = 10 * (1 - p * 0.5);
+      ctx.strokeStyle = hero.weapon ? 'rgba(255,220,150,' + (1 - p) + ')' : 'rgba(255,240,190,' + (1 - p) + ')';
+      ctx.lineWidth = (hero.weapon ? 14 : 10) * (1 - p * 0.5);
       ctx.beginPath();
-      ctx.arc(10, 0, 46, -1.1 + p * 1.6, 0.6 + p * 1.6);
+      ctx.arc(10, 0, hero.weapon ? 56 : 46, -1.1 + p * 1.6, 0.6 + p * 1.6);
       ctx.stroke();
       ctx.restore();
     }
   }
   function drawZombie(z) {
     var x = z.x - camera.x;
-    if (x < -170 || x > view.w + 170) return;
+    if (x < -220 || x > view.w + 220) return;
+    var st = zStat(z.type);
     if (z.dead) {
       var p = Math.min(1, z.deadT / 0.55);
       ctx.save();
       ctx.globalAlpha = 1 - p;
       drawShadow(x, z.y, 18 * (1 - p * 0.5));
-      var e2 = A.get('zombie.' + z.type + '_walk');
+      var e2 = A.get('zombie.' + st.anim + '_walk');
       ctx.translate(x, z.y);
       ctx.scale(1 + p * 0.5, Math.max(0.05, 1 - p));
       ctx.translate(-x, -z.y);
@@ -554,60 +798,85 @@ window.ZCITY = window.ZCITY || {};
       ctx.restore();
       return;
     }
-    drawShadow(x, z.y, 18);
-    var lean = z.windup > 0 ? -6 * (1 - z.windup / zStat(z.type).windup) : 0;
-    var anim = (z.close && !z.entering) ? z.type + '_attack' : z.type + '_walk';
-    var e = A.get('zombie.' + anim) || A.get('zombie.' + z.type + '_walk');
-    var rawIdx = z.windup > 0 ? Math.floor((zStat(z.type).windup - z.windup) * 10) : (z.close ? Math.floor(z.atkT) : Math.floor(z.phase));
+    drawShadow(x, z.y, z.dispH * 0.18);
+    var lean = z.windup > 0 ? -8 * (1 - z.windup / st.windup) : 0;
+    var anim = (z.close && !z.entering) ? st.anim + '_attack' : st.anim + '_walk';
+    var e = A.get('zombie.' + anim) || A.get('zombie.' + st.anim + '_walk');
+    var rawIdx = z.windup > 0 ? Math.floor((st.windup - z.windup) * 10) : (z.close ? Math.floor(z.atkT) : Math.floor(z.phase));
     var idx = isFinite(rawIdx) ? rawIdx : 0;
     var face = (hero.x < z.x) ? 1 : -1;
     var ok = A.drawFrame(ctx, e, idx, x + lean, z.y, z.dispH, face);
     if (!ok) {
-      ctx.fillStyle = '#5c8a4a';
+      ctx.fillStyle = st.anim === 'DOC' ? '#c8d8e0' : st.anim === 'NUR' ? '#e8b8c8' : st.anim === 'BOSS' ? '#d8d8e8' : '#5c8a4a';
       ctx.fillRect(x - 12, z.y - z.dispH * 0.75, 24, z.dispH * 0.75);
       ctx.beginPath(); ctx.arc(x, z.y - z.dispH * 0.8, 11, 0, Math.PI * 2); ctx.fill();
     }
     if (z.hurtT > 0) {
       ctx.save(); ctx.globalAlpha = Math.min(0.65, z.hurtT * 4);
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(x - 20, z.y - z.dispH, 40, z.dispH);
+      ctx.fillRect(x - 24, z.y - z.dispH, 48, z.dispH);
       ctx.restore();
     }
     if (z.windup > 0) {
       ctx.save();
-      ctx.font = 'bold 26px sans-serif'; ctx.textAlign = 'center';
+      ctx.font = 'bold ' + (z.type === 'BOSS' ? 40 : 26) + 'px sans-serif'; ctx.textAlign = 'center';
       ctx.fillStyle = '#ffb02e';
-      ctx.fillText('!', x, z.y - z.dispH - 46 - (1 - z.windup / zStat(z.type).windup) * 6);
+      ctx.fillText('!', x, z.y - z.dispH - (z.type === 'BOSS' ? 80 : 46) - (1 - z.windup / st.windup) * 6);
       ctx.restore();
     }
     if (z.hp < z.hpMax) {
-      var bw = 44, hpP = Math.max(0, z.hp / z.hpMax);
+      var bw = z.type === 'BOSS' ? 90 : 44, hpP = Math.max(0, z.hp / z.hpMax);
       ctx.fillStyle = 'rgba(0,0,0,0.5)';
       ctx.fillRect(x - bw / 2, z.y - z.dispH - 12, bw, 5);
       ctx.fillStyle = hpP > 0.5 ? '#9ce89c' : hpP > 0.25 ? '#ffd873' : '#ff6b5c';
       ctx.fillRect(x - bw / 2, z.y - z.dispH - 12, bw * hpP, 5);
     }
-    // 弱点字符牌（双倍窗口内金光呼吸）
+    // Boss 喊词气泡
+    if (z.shout) {
+      ctx.save();
+      var bbW = 64, bbH = 46;
+      var bbX = x - bbW / 2, bbY = z.y - z.dispH - 92;
+      ctx.fillStyle = 'rgba(20,10,14,0.88)';
+      if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(bbX, bbY, bbW, bbH, 10); ctx.fill(); }
+      else ctx.fillRect(bbX, bbY, bbW, bbH);
+      ctx.strokeStyle = SP.SPELLS[z.shout].color; ctx.lineWidth = 2;
+      if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(bbX, bbY, bbW, bbH, 10); ctx.stroke(); }
+      else ctx.strokeRect(bbX, bbY, bbW, bbH);
+      ctx.font = 'bold 30px "Microsoft YaHei", sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = SP.SPELLS[z.shout].color;
+      ctx.fillText(z.shout, x, bbY + 22);
+      ctx.font = '10px monospace';
+      ctx.fillStyle = '#fff';
+      ctx.fillText('BOSS CAST', x, bbY + bbH - 8);
+      ctx.restore();
+    }
+    // 弱点字符牌（字 + 英文释义）
     var bob = Math.sin(z.phase * 0.6) * 3;
-    var bw2 = 34, bx = x - bw2 / 2, by = z.y - z.dispH - 40 + bob;
+    var bw2 = z.type === 'BOSS' ? 58 : 36, bh2 = z.type === 'BOSS' ? 52 : 44;
+    var bx = x - bw2 / 2, by = z.y - z.dispH - (z.type === 'BOSS' ? 46 : 40) + bob;
     var pend = z.charWin && (z.charWin.voice || z.charWin.rune);
+    var sp2 = SP.SPELLS[z.spell];
     ctx.save();
     ctx.fillStyle = '#f5e6c8';
     ctx.strokeStyle = pend ? '#ffd873' : '#8a5a2a'; ctx.lineWidth = pend ? 3 : 2;
-    if (pend) ctx.shadowColor = '#ffd873', ctx.shadowBlur = 10;
+    if (pend) { ctx.shadowColor = '#ffd873'; ctx.shadowBlur = 10; }
     ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(bx, by, bw2, 32, 6); else ctx.rect(bx, by, bw2, 32);
+    if (ctx.roundRect) ctx.roundRect(bx, by, bw2, bh2, 6); else ctx.rect(bx, by, bw2, bh2);
     ctx.fill(); ctx.stroke();
     ctx.shadowBlur = 0;
-    ctx.font = 'bold 22px "Microsoft YaHei", sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = 'bold ' + (z.type === 'BOSS' ? 32 : 22) + 'px "Microsoft YaHei", sans-serif';
     ctx.fillStyle = '#c03028';
-    ctx.fillText(z.spell, x, by + 17);
-    if (z.charWin && (z.charWin.voice || z.charWin.rune)) {         // 完成角标
+    ctx.fillText(z.spell, x, by + (z.type === 'BOSS' ? 20 : 16));
+    ctx.font = 'bold ' + (z.type === 'BOSS' ? 11 : 9) + 'px monospace';
+    ctx.fillStyle = '#2a5a2a';
+    ctx.fillText(sp2 ? sp2.en : '', x, by + (z.type === 'BOSS' ? 40 : 34));
+    if (z.charWin && (z.charWin.voice || z.charWin.rune)) {
       ctx.font = '11px sans-serif';
       ctx.fillStyle = '#3a7a2a';
       ctx.textAlign = 'left';
-      ctx.fillText((z.charWin.voice ? '🔊' : '') + (z.charWin.rune ? '✍' : ''), bx + 2, by + 30);
+      ctx.fillText((z.charWin.voice ? '🔊' : '') + (z.charWin.rune ? '✍' : ''), bx + 2, by + bh2 - 4);
     }
     ctx.restore();
   }
@@ -619,10 +888,36 @@ window.ZCITY = window.ZCITY || {};
     ctx.fillText('!', x, view.groundY + 30);
     ctx.restore();
   }
+  /* 物品绘制（发光浮字） */
+  function drawItems() {
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      var x = it.x - camera.x;
+      if (x < -60 || x > view.w + 60) continue;
+      var info = ITEMS[it.ch];
+      var y = view.groundY - 26 + Math.sin(performance.now() / 400 + i) * 5;
+      var near = Math.abs(it.x - hero.x) < 46;
+      ctx.save();
+      ctx.shadowColor = info.color; ctx.shadowBlur = near ? 22 : 12;
+      ctx.font = 'bold 30px "Microsoft YaHei", serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = info.color;
+      ctx.fillText(it.ch, x, y);
+      ctx.shadowBlur = 0;
+      ctx.font = 'bold 10px monospace';
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.fillText(info.en.toUpperCase(), x, y + 22);
+      if (near) {
+        ctx.font = 'bold 11px "Microsoft YaHei", sans-serif';
+        ctx.fillStyle = '#ffe28a';
+        ctx.fillText('靠近 → 念词拾取', x, y - 28);
+      }
+      ctx.restore();
+    }
+  }
 
   /* ---------- 特效层 ---------- */
   function drawFx(dt) {
-    // 法术字弹（追踪目标）
     for (var s = fx.spells.length - 1; s >= 0; s--) {
       var p = fx.spells[s];
       p.t += dt / p.dur;
@@ -637,12 +932,11 @@ window.ZCITY = window.ZCITY || {};
       ctx.fillStyle = p.color;
       ctx.fillText(p.ch, cx, cy);
       ctx.restore();
-      // 尾迹粒子
       if (Math.random() < 0.6) fx.parts.push({ x: cx, y: cy, vx: (Math.random() - 0.5) * 40, vy: (Math.random() - 0.5) * 40,
         t: 0.3, color: p.color, r: 1.5 + Math.random() * 2 });
       if (k >= 1) { fx.spells.splice(s, 1); spellHit(p); }
     }
-    // 粒子
+    drawBossSpells(dt);
     for (var i = fx.parts.length - 1; i >= 0; i--) {
       var q = fx.parts[i];
       q.t -= dt;
@@ -654,7 +948,6 @@ window.ZCITY = window.ZCITY || {};
       ctx.beginPath(); ctx.arc(q.x, q.y, q.r, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
-    // 金币飞行
     var tcx = view.w - 64, tcy = 38;
     for (var c2 = fx.coins.length - 1; c2 >= 0; c2--) {
       var c = fx.coins[c2];
@@ -673,7 +966,6 @@ window.ZCITY = window.ZCITY || {};
       ctx.restore();
       if (t >= 1) { fx.coins.splice(c2, 1); coinsCount++; coinPop = 0.3; S.coin(); }
     }
-    // 伤害数字
     for (var d = fx.dmgNums.length - 1; d >= 0; d--) {
       var n = fx.dmgNums[d];
       n.t -= dt; n.y -= dt * 44;
@@ -729,6 +1021,9 @@ window.ZCITY = window.ZCITY || {};
       hud.coins.textContent = coinsCount;
       hud.coins.style.transform = coinPop > 0 ? 'scale(' + (1 + coinPop * 0.5) + ')' : '';
     }
+    var w = document.getElementById('weaponChip');
+    if (w) w.style.display = hero.weapon ? 'flex' : 'none';
+    if (hero.weapon && w) w.textContent = '🗡 ' + hero.weapon.ch + ' +' + hero.weapon.bonus;
   }
 
   /* ---------- 主循环 ---------- */
@@ -743,7 +1038,6 @@ window.ZCITY = window.ZCITY || {};
     var dt = rdt;
     if (fx.hitstop > 0) { fx.hitstop -= rdt; dt = 0; }
     if (fx.shakeT > 0) fx.shakeT -= rdt;
-    // 施法面板打开时世界冻结（学习者答题/书写不被围殴）
     if (document.getElementById('voicePanel') || document.getElementById('runeBoard')) {
       dt = 0;
       keys.left = keys.right = keys.up = keys.down = false;
@@ -774,16 +1068,17 @@ window.ZCITY = window.ZCITY || {};
         if (z.hurtT > 0) z.hurtT -= rdt;
         if (Math.abs(z.kb) > 4) { z.x += z.kb * dt; z.kb *= Math.max(0, 1 - 7 * dt); }
         var dx = hero.x - z.x, dy = hero.y - z.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
-        z.close = d < 46;
+        z.close = d < (z.type === 'BOSS' ? 74 : 46);
+        if (z.type === 'BOSS') bossTick(z, dt);
         if (z.entering) {
           var inX = camera.x + view.w * (z.x > camera.x + view.w / 2 ? 0.86 : 0.14);
           var edx = inX - z.x;
           z.x += Math.sign(edx) * z.speed * 1.15 * dt;
           z.phase += dt * 7;
-          if (Math.abs(edx) < 24 || d < 70) z.entering = false;   // 就位或接近玩家即参战
+          if (Math.abs(edx) < 24 || d < 90) z.entering = false;
           continue;
         }
-        if (z.strikeT > 0) {                                     // 前扑滑行（有动画的位移）
+        if (z.strikeT > 0) {
           z.strikeT -= dt;
           z.x += z.strikeDir * STRIKE.speed * dt;
           if (z.strikeT <= 0) z.atkCd = enc.block === 1 ? 2.6 : 1.7;
@@ -793,7 +1088,7 @@ window.ZCITY = window.ZCITY || {};
           z.windup -= dt;
           if (z.windup <= 0) {
             z.strikeT = STRIKE.dur; z.strikeDir = Math.sign(dx) || 1;
-            if (d < 62 && hero.invulnT <= 0) hurtPlayer(z.dmg, z.x);
+            if (d < (z.type === 'BOSS' ? 88 : 62) && hero.invulnT <= 0) hurtPlayer(z.dmg, z.x);
           }
           continue;
         }
@@ -805,7 +1100,7 @@ window.ZCITY = window.ZCITY || {};
           z.y += dy / d * z.speed * dt * 0.5;
           z.y = clamp(z.y, bandTop(), bandBot());
           z.phase += dt * 7;
-        } else if (d < 30) {                                 // 过近贴脸：缓缓退开保持攻击距离
+        } else if (d < (z.type === 'BOSS' ? 60 : 30)) {
           z.x -= dx / d * 26 * dt;
           z.y -= dy / d * 26 * dt * 0.5;
           z.y = clamp(z.y, bandTop(), bandBot());
@@ -821,6 +1116,17 @@ window.ZCITY = window.ZCITY || {};
             var sg = ddx >= 0 ? 1 : -1;
             za.x -= sg * push; zb.x += sg * push;
           }
+        }
+      }
+
+      // 物品拾取（自动弹念词面板）
+      if (enc.phase !== 'active' && !defeated && !document.getElementById('voicePanel')) {
+        var ni = nearItem();
+        if (ni && !ni.opened) {
+          ni.opened = true;
+          tryPickup(ni);
+        } else if (!ni) {
+          items.forEach(function (it2) { it2.opened = false; });
         }
       }
     }
@@ -849,9 +1155,12 @@ window.ZCITY = window.ZCITY || {};
     if (fx.shakeT > 0) { var m = fx.shakeMag * (fx.shakeT / fx.shakeDur); shx = (Math.random() - 0.5) * 2 * m; shy = (Math.random() - 0.5) * 2 * m; }
     ctx.save();
     ctx.translate(shx, shy);
-    if (scene.indoor) drawStoreBg(camera.x); else drawStreetBg(camera.x);
+    if (scene.id === 'hospital') drawHospitalBg(camera.x);
+    else if (scene.indoor) drawStoreBg(camera.x);
+    else drawStreetBg(camera.x);
     drawBarricades();
     for (var m2 = 0; m2 < scene.doors.length; m2++) drawDoor(scene.doors[m2]);
+    drawItems();
     for (var q = 0; q < enc.queue.length; q++) if (enc.queue[q].t < 0.5) drawMarker(enc.queue[q]);
     var list = zombies.slice();
     list.push({ isHero: true, y: hero.y });
@@ -896,7 +1205,7 @@ window.ZCITY = window.ZCITY || {};
       ZCITY.Rune.open('main');
     });
     document.getElementById('homeBtn').addEventListener('click', function () {
-      showToast('🏠 安全屋（完整版 M4）· 当前可在便利店休息');
+      showToast('🏠 安全屋（完整版 M4）· 便利店/医院可补给');
     });
     document.getElementById('retryBtn').addEventListener('click', retry);
     document.getElementById('enterBtn').addEventListener('click', function () {
@@ -929,10 +1238,20 @@ window.ZCITY = window.ZCITY || {};
     resize();
     window.addEventListener('resize', resize);
     hero = makeHero(SCENES.street.spawn.x);
-    zombies = [];
+    zombies = []; items = [];
     camera = { x: 0 };
     scene = SCENES.street;
     if (hud.scene) hud.scene.textContent = scene.name;
+    makeItems();
+    // 僵尸服装变体（着色）：医生白大褂/护士粉/店员绿裙/BOSS巨医白
+    A.tintEntry('zombie.A_walk', 'zombie.DOC_walk', '#e8eef2', 0.5);
+    A.tintEntry('zombie.A_attack', 'zombie.DOC_attack', '#e8eef2', 0.5);
+    A.tintEntry('zombie.B_walk', 'zombie.NUR_walk', '#f2b8c8', 0.5);
+    A.tintEntry('zombie.B_attack', 'zombie.NUR_attack', '#f2b8c8', 0.5);
+    A.tintEntry('zombie.A_walk', 'zombie.CLR_walk', '#8ad08a', 0.45);
+    A.tintEntry('zombie.A_attack', 'zombie.CLR_attack', '#8ad08a', 0.45);
+    A.tintEntry('zombie.C_walk', 'zombie.BOSS_walk', '#e8eef2', 0.55);
+    A.tintEntry('zombie.C_attack', 'zombie.BOSS_attack', '#e8eef2', 0.55);
     if (SP) SP.init({
       get hero() { return hero; },
       get zombies() { return zombies; },
@@ -960,6 +1279,10 @@ window.ZCITY = window.ZCITY || {};
   });
 
   ZCITY.Game = { start: start, toast: showToast };
+  ZCITY.Game.micState = function (on) {
+    var b = document.getElementById('btnVoice');
+    if (b) b.classList.toggle('listening', !!on);
+  };
   ZCITY.Debug = {
     get hero() { return hero; },
     get zombies() { return zombies; },
@@ -967,6 +1290,8 @@ window.ZCITY = window.ZCITY || {};
     get scene() { return scene; },
     get enc() { return enc; },
     get fx() { return fx; },
+    get items() { return items; },
+    ITEMS: ITEMS,
     view: function () { return view; },
     attack: tryAttack,
     hurt: function (n) { hurtPlayer(n || 999, hero.x + 30); },
@@ -983,13 +1308,10 @@ window.ZCITY = window.ZCITY || {};
         lockCam: enc.lockCam, queue: enc.queue.length, zombies: zombies.length,
         dead: zombies.filter(function (z) { return z.dead; }).length,
         heroHp: hero.hp, coins: coinsCount, combo: fx.combo, allClear: enc.allClear,
+        weapon: hero.weapon ? hero.weapon.ch : null, items: items.map(function (i2) { return i2.ch; }),
+        bossSpells: fx.bossSpells.length,
         spells: fx.spells.length, parts: fx.parts.length, dmgNums: fx.dmgNums.length, coinFly: fx.coins.length
       };
     }
-  };
-  /* mic 高亮 */
-  ZCITY.Game.micState = function (on) {
-    var b = document.getElementById('btnVoice');
-    if (b) b.classList.toggle('listening', !!on);
   };
 })();

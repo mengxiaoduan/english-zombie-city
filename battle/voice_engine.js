@@ -11,35 +11,38 @@ window.ZCITY = window.ZCITY || {};
   var panel = null, rec = null, listening = false, holdTimer = 0;
   var srAvailable = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 
-  /* ---------- 拼音点选面板 ---------- */
-  function openPanel(reason) {
+  /* ---------- 拼音点选面板 ----------
+   * opts: { forcedChar: 强制出题字（拾取模式）， onPickup: 拾取回调， mode: 'pickup' } */
+  function openPanel(reason, opts) {
     if (panel) return;
-    var chars = S.fieldChars();
+    opts = opts || {};
+    var chars = opts.forcedChar ? [opts.forcedChar] : S.fieldChars();
     if (!chars.length) { ZCITY.Game.toast('附近没有僵尸，先前进！'); return; }
     var target = chars[Math.floor(Math.random() * chars.length)];
-    var sp = S.SPELLS[target];
+    var sp = S.SPELLS[target] || (ZCITY.Debug && ZCITY.Debug.ITEMS ? ZCITY.Debug.ITEMS[target] : null);
     if (!sp) return;
 
     panel = document.createElement('div');
     panel.id = 'voicePanel';
-    var opts = [sp.py];
-    var pool = ['huǒ', 'shuǐ', 'shí', 'shān', 'tǔ', 'tiān', 'yuè', 'rì', 'mù', 'kǒu'];
-    while (opts.length < 4) {
+    var opts2 = [sp.py];
+    var pool = ['huǒ', 'shuǐ', 'shí', 'shān', 'yào', 'bàng', 'gùn', 'dāo', 'fàn', 'tǔ', 'tiān', 'yuè', 'rì', 'kǒu'];
+    while (opts2.length < 4) {
       var p = pool[Math.floor(Math.random() * pool.length)];
-      if (opts.indexOf(p) < 0) opts.push(p);
+      if (opts2.indexOf(p) < 0) opts2.push(p);
     }
-    // 洗牌
-    for (var i = opts.length - 1; i > 0; i--) {
+    for (var i = opts2.length - 1; i > 0; i--) {
       var j = Math.floor(Math.random() * (i + 1));
-      var tmp = opts[i]; opts[i] = opts[j]; opts[j] = tmp;
+      var tmp = opts2[i]; opts2[i] = opts2[j]; opts2[j] = tmp;
     }
-    var pend = S.pendingDouble(target);
+    var pend = !opts.mode && S.pendingDouble(target);
     panel.innerHTML =
       '<div class="vp-card">' +
       '<div class="vp-title">' + (reason || '读出这个字') + '</div>' +
       '<div class="vp-char" id="vpChar">' + target + '</div>' +
-      '<div class="vp-sub">' + (pend ? '✍️ 已画符——选对读音即双倍！' : '听发音，选出它的拼音') + '</div>' +
-      '<div class="vp-opts">' + opts.map(function (o) {
+      '<div class="vp-sub">' + (opts.mode === 'pickup'
+          ? sp.py + ' · ' + sp.en + ' —— 念对即可获得'
+          : (pend ? '✍️ 已画符——选对读音即双倍！' : '听发音，选出它的拼音')) + '</div>' +
+      '<div class="vp-opts">' + opts2.map(function (o) {
         return '<div class="vp-opt" data-ok="' + (o === sp.py ? 1 : 0) + '">' + o + '</div>';
       }).join('') + '</div>' +
       '<div class="vp-hear" id="vpHear">🔊 再听一次</div>' +
@@ -49,20 +52,24 @@ window.ZCITY = window.ZCITY || {};
 
     panel.querySelector('#vpClose').addEventListener('click', closePanel);
     panel.querySelector('#vpHear').addEventListener('click', function () { S.speak(target); });
-    var opts2 = panel.querySelectorAll('.vp-opt');
-    for (var k = 0; k < opts2.length; k++) {
+    var els = panel.querySelectorAll('.vp-opt');
+    for (var k = 0; k < els.length; k++) {
       (function (el) {
         el.addEventListener('click', function () {
           if (el.getAttribute('data-ok') === '1') {
             el.classList.add('right');
             S.speak(target);
-            setTimeout(function () { closePanel(); S.onVoiceHit(target); }, 380);
+            var cb = opts.onPickup;
+            setTimeout(function () {
+              closePanel();
+              if (cb) cb(target); else S.onVoiceHit(target);
+            }, 380);
           } else {
             el.classList.add('wrong');
             el.style.pointerEvents = 'none';
           }
         });
-      })(opts2[k]);
+      })(els[k]);
     }
     setTimeout(function () { S.speak(target); }, 250);
   }
