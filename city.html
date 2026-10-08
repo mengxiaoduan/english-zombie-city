@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#141019">
+<title>丧尸英语城 v3 · 学中文，打丧尸</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #141019; font-family: system-ui, "Microsoft YaHei", sans-serif; }
+  #gameCanvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; touch-action: none; }
+
+  /* ---------- HUD 顶部 ---------- */
+  #hud { position: fixed; top: 0; left: 0; right: 0; padding: calc(env(safe-area-inset-top, 0px) + 8px) 12px 0;
+         display: flex; align-items: center; gap: 10px; z-index: 10; pointer-events: none; }
+  #homeBtn { pointer-events: auto; background: rgba(20,16,25,0.72); color: #cbb8ff; border: 1px solid #4a3a6a;
+             border-radius: 8px; padding: 6px 10px; font-size: 14px; }
+  #hpWrap { flex: 1; max-width: 210px; height: 14px; background: rgba(0,0,0,0.55); border: 1px solid #6a3050;
+            border-radius: 7px; overflow: hidden; }
+  #hpFill { height: 100%; width: 100%; background: linear-gradient(90deg, #e2574c, #ff8a5c); transition: width .2s; }
+  #coinChip { display: flex; align-items: center; gap: 4px; background: rgba(20,16,25,0.72); border: 1px solid #6a5a2a;
+              border-radius: 8px; padding: 5px 9px; font-size: 14px; color: #ffd873; font-weight: 700; }
+  .coin-ic { width: 13px; height: 13px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ffe9a0, #e8a820);
+             border: 1px solid #a87818; display: inline-block; }
+
+  /* ---------- 底部操作 ---------- */
+  #controls { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+              padding: 0 16px calc(env(safe-area-inset-bottom, 0px) + 14px);
+              display: flex; align-items: flex-end; justify-content: space-between; }
+  .move-group { display: flex; gap: 12px; }
+  .ctl { width: 64px; height: 64px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.25);
+         background: rgba(30,24,40,0.55); color: #fff; font-size: 26px; display: flex; align-items: center;
+         justify-content: center; user-select: none; touch-action: none; }
+  .ctl.on { background: rgba(120,90,200,0.65); border-color: #a080ff; }
+  .cast-group { display: flex; gap: 12px; }
+  .cast { width: 74px; height: 74px; border-radius: 18px; border: 2px solid #6a5a2a; background: rgba(60,45,15,0.6);
+          color: #ffe28a; font-size: 13px; font-weight: 700; display: flex; flex-direction: column;
+          align-items: center; justify-content: center; gap: 2px; user-select: none; touch-action: none; }
+  .cast .big { font-size: 26px; line-height: 1; }
+  .cast:active { background: rgba(150,110,30,0.8); }
+
+  #loadingTip { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+                color: #cbb8ff; font-size: 16px; z-index: 5; pointer-events: none; }
+  #verBadge { position: fixed; right: 10px; top: calc(env(safe-area-inset-top, 0px) + 44px); z-index: 9;
+              color: rgba(255,255,255,0.35); font-size: 11px; pointer-events: none; }
+</style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+
+  <div id="hud">
+    <button id="homeBtn">🏠 安全屋</button>
+    <div id="hpWrap"><div id="hpFill"></div></div>
+    <div id="coinChip"><span class="coin-ic"></span><span id="coinNum">0</span></div>
+  </div>
+  <div id="verBadge">丧尸英语城 v3.0.0-m02</div>
+  <div id="loadingTip">加载中...</div>
+
+  <div id="controls">
+    <div class="move-group">
+      <div class="ctl" id="btnL">◀</div>
+      <div class="ctl" id="btnR">▶</div>
+    </div>
+    <div class="cast-group">
+      <div class="cast" id="btnVoice"><span class="big">🎤</span>喊词</div>
+      <div class="cast" id="btnRune"><span class="big">✍️</span>画符</div>
+    </div>
+  </div>
+
+  <script src="battle/city_assets.js?v=zcity-m02"></script>
+  <script src="battle/battle_engine.js?v=zcity-m02"></script>
+</body>
+</html>
