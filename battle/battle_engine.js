@@ -141,6 +141,7 @@ window.ZCITY = window.ZCITY || {};
   var view = { w: 0, h: 0, groundY: 0 };
   var scene, hero, zombies, items, camera, trans = { a: 0, phase: 0, cb: null };
   var keys = { left: false, right: false, up: false, down: false };
+  var attackHold = false;                            // 攻击键长按连击
   var running = false, lastT = 0, rafId = 0;
   var hud = {}, coinsCount = 0, coinPop = 0, nearDoor = null, toastTimer = 0;
 
@@ -1350,14 +1351,18 @@ window.ZCITY = window.ZCITY || {};
     var dt = rdt;
     if (fx.hitstop > 0) { fx.hitstop -= rdt; dt = 0; }
     if (fx.shakeT > 0) fx.shakeT -= rdt;
-    energy = Math.min(ENERGY_MAX, energy + 2 * dt);          // 灵力缓慢回气
+    var runeOpen2 = !!document.getElementById('runeBoard');
+    if (!runeOpen2) energy = Math.min(ENERGY_MAX, energy + 2 * dt);   // 灵力回气（画符凝神时滞涩不回）
     if (document.getElementById('voicePanel')) {              // 拾取问答：冻结保安全
       dt = 0;
       keys.left = keys.right = keys.up = keys.down = false;
     }
-    if (document.getElementById('runeBoard')) {               // 虚空画符：世界继续运行（会挨打），仅锁移动
+    if (runeOpen2) {                                          // 虚空画符：仅锁移动，风险分层
       keys.left = keys.right = keys.up = keys.down = false;
+      if (document.querySelector('#runeBoard .rb-chant')) dt = 0;   // 念词阶段：世界冻结（学习保护）
+      else dt *= 0.35;                                               // 书写阶段：时间凝滞（仍会挨打但可存活）
     }
+    if (attackHold && !runeOpen2 && !document.getElementById('voicePanel')) tryAttack();  // 长按连击
 
     if (!defeated) {
       var vx = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
@@ -1512,6 +1517,11 @@ window.ZCITY = window.ZCITY || {};
     bindHold(document.getElementById('btnU'), 'up');
     bindHold(document.getElementById('btnD'), 'down');
     document.getElementById('btnAttack').addEventListener('click', function () { audio(); tryAttack(); });
+    var atkBtn = document.getElementById('btnAttack');
+    atkBtn.addEventListener('pointerdown', function (e) { e.preventDefault(); audio(); attackHold = true; tryAttack(); });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) {
+      atkBtn.addEventListener(ev, function () { attackHold = false; });
+    });
 
     var mic = document.getElementById('btnVoice');
     mic.addEventListener('pointerdown', function (e) { e.preventDefault(); audio(); ZCITY.Voice.onMicDown(e); });
