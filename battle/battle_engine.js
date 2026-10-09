@@ -98,6 +98,11 @@ window.ZCITY = window.ZCITY || {};
         { x: 850, label: '进入厨房', to: 'kitchen', backX: 100, w: 60 }
       ]
     },
+    safehouse: {
+      id: 'safehouse', name: '茅山安全屋', worldW: 720, indoor: true,
+      spawn: { x: 360 }, zones: [],
+      doors: []
+    },
     kitchen: {
       id: 'kitchen', name: '第一章 · 暴食堂（厨房）', worldW: 900, indoor: true,
       spawn: { x: 100 }, zones: KITCHEN_ZONES,
@@ -147,8 +152,16 @@ window.ZCITY = window.ZCITY || {};
   var enc = { block: 1, zones: makeZones(1), zoneIdx: 0, phase: 'calm', waveIdx: 0,
               queue: [], waveGap: 0, lockCam: -1, allClear: false, tutDone: false };
   var defeated = false;
+  var zKill = 0;                                   // 距安全屋解锁的击杀计数
+  var SAFE_KILLS = 4;                              // 用户定案：击败4只僵尸开安全屋
 
   function bandTop() { return view.groundY + WALK.bandTop; }
+  function heroWallet(n) { try { if (window.HERO && window.HERO.addCoins && n > 0) window.HERO.addCoins(n); } catch (e) { } }
+  function safehouseReady() { return zKill >= SAFE_KILLS; }
+  function updateHomeBtn() {
+    var b = document.getElementById('homeBtn');
+    if (b) b.classList.toggle('ready', safehouseReady());
+  }
   function bandBot() { return view.h - WALK.bandBot; }
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function tierMul() { return 1 + 0.3 * (enc.block - 1); }
@@ -256,8 +269,8 @@ window.ZCITY = window.ZCITY || {};
     if (!enc.tutDone && !isBoss) {
       enc.tutDone = true;
       setTimeout(function () { showToast('🎯 僵尸头顶有汉字弱点（附英文）', 2200); }, 700);
-      setTimeout(function () { showToast('🎤 点喊词读出它 → 释放法术', 2200); }, 3100);
-      setTimeout(function () { showToast('✍️ 再画符 → 双倍伤害！', 2200); }, 5500);
+      setTimeout(function () { showToast('✍️ 点画符写汉字 → 释放法术', 2200); }, 3100);
+      setTimeout(function () { showToast('📜 击杀4只开安全屋 · 制符背包快捷施法', 2400); }, 5700);
     }
   }
   function scheduleWave(i) {
@@ -292,7 +305,7 @@ window.ZCITY = window.ZCITY || {};
         var wasBoss = zone.waves[zone.waves.length - 1][0][0] === 'BOSS';
         enc.phase = 'clear'; enc.lockCam = -1;
         hero.hp = Math.min(hero.hpMax, hero.hp + 12);
-        coinsCount += wasBoss ? 40 : 5; coinPop = 0.3;
+        coinsCount += wasBoss ? 40 : 5; coinPop = 0.3; heroWallet(wasBoss ? 40 : 5);
         banner(wasBoss ? '👑 BOSS 击破！ +40金币' : '✔ 区域肃清  +5金币', wasBoss ? '#ffb02e' : '#9ce89c');
         S.clear();
         if (enc.zoneIdx >= enc.zones.length - 1) {
@@ -420,6 +433,12 @@ window.ZCITY = window.ZCITY || {};
   function killZombie(z, bySpell) {
     z.dead = true; z.deadT = 0; z.charWin = null;
     S.die();
+    zKill++;
+    if (zKill === SAFE_KILLS) {
+      updateHomeBtn();
+      banner('🏠 安全屋已开启！', '#9ce89c');
+      setTimeout(function () { showToast('顶栏🏠进入安全屋：回复/画符/买符纸/小游戏', 2600); }, 900);
+    }
     var n = z.coin + (bySpell ? 2 : 0);
     for (var c = 0; c < n; c++) {
       fx.coins.push({
@@ -643,6 +662,17 @@ window.ZCITY = window.ZCITY || {};
     nearDoor = null;
     document.getElementById('enterBtn').style.display = 'none';
     if (hud.scene) hud.scene.textContent = scene.name;
+    var shUI = document.getElementById('safehouseUI');
+    if (shUI) shUI.classList.toggle('show', id === 'safehouse');
+    var mg = document.getElementById('minigameOverlay');
+    if (mg && id !== 'safehouse') mg.classList.remove('show');
+    if (id === 'safehouse') {
+      hero.hp = hero.hpMax;
+      zKill = 0; updateHomeBtn();
+      if (ZCITY.Charms) ZCITY.Charms.render();
+      if (window.__shRefresh) window.__shRefresh();
+      showToast('🛖 茅山安全屋 · 伤势已完全回复', 2200);
+    }
     if (id === 'store') showToast('🏪 击退店员僵尸后可搜刮补给', 2000);
     if (id === 'hospital') showToast('🏥 院内有效尸化医护，小心', 2000);
     if (id === 'dining') showToast('🍽 第一章·暴食：僵尸吃撑了这里……', 2400);
@@ -742,6 +772,64 @@ window.ZCITY = window.ZCITY || {};
     }
     for (var gy = view.groundY + 20; gy < view.h; gy += 28) {
       ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(view.w, gy); ctx.stroke();
+    }
+  }
+  /* 茅山安全屋：暖木色道观内景（程序绘制：月窗/挂符/烛台/案桌） */
+  function drawSafehouseBg(camX) {
+    var g = ctx.createLinearGradient(0, 0, 0, view.groundY);
+    g.addColorStop(0, '#241a12'); g.addColorStop(0.55, '#3a2a1a'); g.addColorStop(1, '#574028');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, view.w, view.groundY);
+    var t = performance.now() / 1000;
+    var wx = 360 - camX;
+    if (wx > -120 && wx < view.w + 120) {
+      var wy = view.groundY - 235;
+      ctx.beginPath(); ctx.arc(wx, wy, 52, 0, 7); ctx.fillStyle = '#0e1626'; ctx.fill();
+      ctx.lineWidth = 7; ctx.strokeStyle = '#6a4a26'; ctx.stroke();
+      ctx.beginPath(); ctx.arc(wx - 13, wy - 9, 28, 0, 7); ctx.fillStyle = '#f5e9c8'; ctx.fill();
+      ctx.strokeStyle = '#6a4a26'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(wx - 52, wy); ctx.lineTo(wx + 52, wy);
+      ctx.moveTo(wx, wy - 52); ctx.lineTo(wx, wy + 52); ctx.stroke();
+    }
+    var hang = [130, 235, 485, 590];
+    for (var hi = 0; hi < hang.length; hi++) {
+      var hx = hang[hi] - camX;
+      if (hx < -40 || hx > view.w + 40) continue;
+      ctx.save();
+      ctx.translate(hx, view.groundY - 205);
+      ctx.rotate(Math.sin(t * 1.2 + hi * 1.7) * 0.07);
+      ctx.fillStyle = '#e8d5a0'; ctx.fillRect(-17, 0, 34, 80);
+      ctx.strokeStyle = '#b82820'; ctx.lineWidth = 2; ctx.strokeRect(-12, 6, 24, 68);
+      ctx.fillStyle = '#b82820'; ctx.font = '900 15px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText('敕', 0, 30); ctx.fillText('令', 0, 55);
+      ctx.restore();
+    }
+    var candles = [75, 645];
+    for (var ci = 0; ci < candles.length; ci++) {
+      var x = candles[ci] - camX;
+      if (x < -30 || x > view.w + 30) continue;
+      var cy = view.groundY - 50;
+      ctx.fillStyle = '#4a3320'; ctx.fillRect(x - 7, cy, 14, 50);
+      ctx.fillStyle = '#e8d5a0'; ctx.fillRect(x - 4, cy - 7, 8, 8);
+      var fl = 1 + Math.sin(t * 9 + ci * 3) * 0.28;
+      var fg = ctx.createRadialGradient(x, cy - 16, 2, x, cy - 16, 20 * fl);
+      fg.addColorStop(0, 'rgba(255,224,130,0.95)'); fg.addColorStop(1, 'rgba(255,140,40,0)');
+      ctx.beginPath(); ctx.ellipse(x, cy - 15, 5 * fl, 11 * fl, 0, 0, 7);
+      ctx.fillStyle = fg; ctx.fill();
+    }
+    ctx.fillStyle = '#3a2a18'; ctx.fillRect(0, view.groundY, view.w, view.h - view.groundY);
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 2;
+    for (var px = -(camX % 90); px < view.w + 40; px += 90) {
+      ctx.beginPath(); ctx.moveTo(px, view.groundY); ctx.lineTo(px - 30, view.h); ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(255,220,150,0.07)'; ctx.fillRect(0, view.groundY, view.w, 8);
+    var tx = 360 - camX;
+    if (tx > -160 && tx < view.w + 160) {
+      ctx.fillStyle = '#5a3a20'; ctx.fillRect(tx - 72, view.groundY - 62, 144, 18);
+      ctx.fillRect(tx - 64, view.groundY - 44, 10, 44); ctx.fillRect(tx + 54, view.groundY - 44, 10, 44);
+      ctx.fillStyle = '#e8d5a0'; ctx.fillRect(tx - 36, view.groundY - 77, 72, 16);
+      ctx.strokeStyle = '#b82820'; ctx.lineWidth = 2; ctx.strokeRect(tx - 36, view.groundY - 77, 72, 16);
+      ctx.fillStyle = '#b82820'; ctx.font = '900 12px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText('符', tx, view.groundY - 65);
     }
   }
   function drawStoreBg(camX) {
@@ -1176,7 +1264,7 @@ window.ZCITY = window.ZCITY || {};
       ctx.fillStyle = '#ffd873'; ctx.strokeStyle = '#a87818'; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       ctx.restore();
-      if (t >= 1) { fx.coins.splice(c2, 1); if (!c.backTo) { coinsCount++; coinPop = 0.3; S.coin(); } }
+      if (t >= 1) { fx.coins.splice(c2, 1); if (!c.backTo) { coinsCount++; coinPop = 0.3; S.coin(); heroWallet(1); } }
     }
     for (var d = fx.dmgNums.length - 1; d >= 0; d--) {
       var n = fx.dmgNums[d];
@@ -1375,6 +1463,7 @@ window.ZCITY = window.ZCITY || {};
     if (scene.id === 'hospital') drawHospitalBg(camera.x);
     else if (scene.id === 'dining') drawDiningBg(camera.x);
     else if (scene.id === 'kitchen') drawKitchenBg(camera.x);
+    else if (scene.id === 'safehouse') drawSafehouseBg(camera.x);
     else if (scene.indoor) drawStoreBg(camera.x);
     else drawStreetBg(camera.x);
     drawBarricades();
@@ -1424,7 +1513,13 @@ window.ZCITY = window.ZCITY || {};
       ZCITY.Rune.open('main');
     });
     document.getElementById('homeBtn').addEventListener('click', function () {
-      showToast('🏠 安全屋（完整版 M4）· 便利店/医院可补给');
+      audio();
+      if (scene.id === 'safehouse') { showToast('已在安全屋中'); return; }
+      if (!safehouseReady()) {
+        showToast('还需击杀 ' + (SAFE_KILLS - zKill) + ' 只僵尸开启安全屋（' + zKill + '/' + SAFE_KILLS + '）', 2200);
+        return;
+      }
+      startTransition(function () { enterScene('safehouse'); });
     });
     document.getElementById('retryBtn').addEventListener('click', retry);
     document.getElementById('enterBtn').addEventListener('click', function () {
@@ -1491,6 +1586,8 @@ window.ZCITY = window.ZCITY || {};
       spellStrike: spellStrike
     });
     bindUi();
+    updateHomeBtn();
+    if (ZCITY.Charms) ZCITY.Charms.boot();
     if (ZCITY.VoiceWake) ZCITY.VoiceWake.boot();   // 免按声纹引擎：进战斗即持续监听
     document.addEventListener('visibilitychange', function () {
       if (document.hidden) { running = false; cancelAnimationFrame(rafId); }
@@ -1509,6 +1606,17 @@ window.ZCITY = window.ZCITY || {};
   });
 
   ZCITY.Game = { start: start, toast: showToast };
+  /* 战斗对外接口（符纸背包/安全屋 UI 使用） */
+  ZCITY.Combat = {
+    get scene() { return scene; },
+    get hero() { return hero; },
+    get zombies() { return zombies; },
+    spellStrike: spellStrike,
+    healHero: function (n) { hero.hp = Math.min(hero.hpMax, hero.hp + (n || 0)); },
+    canCast: function () { return !defeated && trans.phase === 0; },
+    go: function (id, backX) { startTransition(function () { enterScene(id, backX); }); },
+    toast: showToast
+  };
   ZCITY.Game.micState = function (on) {
     var b = document.getElementById('btnVoice');
     if (b) b.classList.toggle('listening', !!on);

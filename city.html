@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#141019">
 <title>丧尸英语城 v3 · 学中文，打丧尸</title>
+<script>
+  /* m11 全局配置：语音体验差暂时屏蔽（引擎代码保留，改回 true 即恢复） */
+  window.ZCITY_CFG = { voice: false };
+</script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { width: 100%; height: 100%; overflow: hidden; background: #141019; font-family: system-ui, "Microsoft YaHei", sans-serif; }
@@ -94,8 +98,7 @@
   .mini-cast.listening { background: rgba(200,60,50,0.85); border-color: #ff9c8a;
                animation: micPulse 1.6s ease-in-out infinite; }
   @keyframes micPulse { 0%,100% { box-shadow: 0 0 2px 2px rgba(255,120,90,0.25); } 50% { box-shadow: 0 0 8px 4px rgba(255,120,90,0.65); } }
-                         animation: micPulse 0.8s ease-in-out infinite; }
-  @keyframes micPulse { 50% { box-shadow: 0 0 22px rgba(255,120,100,0.8); } }
+  .mini-cast.off { display: none; }
   #btnAttack { width: 82px; height: 82px; border-radius: 20px; border: 2px solid #a84838;
                background: radial-gradient(circle at 35% 28%, #e2655a, #a33028); color: #fff;
                font-size: 12px; font-weight: 800; letter-spacing: 2px;
@@ -168,6 +171,114 @@
                background: rgba(200,60,50,0.95); color: #fff; font-size: 20px; font-weight: 800;
                border-radius: 14px; padding: 10px 18px; opacity: 0; pointer-events: none; transition: opacity .15s; }
   #micBubble.show { opacity: 1; }
+
+  /* ---------- 符纸背包快捷栏 ---------- */
+  #charmBar { position: fixed; left: 50%; transform: translateX(-50%);
+              bottom: calc(env(safe-area-inset-bottom, 0px) + 138px);
+              display: flex; gap: 7px; z-index: 11; max-width: 72vw; overflow-x: auto;
+              padding: 4px; scrollbar-width: none; }
+  #charmBar::-webkit-scrollbar { display: none; }
+  .charm-slot { width: 44px; height: 56px; flex: 0 0 auto; border-radius: 8px;
+                background: linear-gradient(180deg, #f0e0b8, #d8c090); border: 1.5px solid #b89050;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.45), inset 0 0 0 2px rgba(184,40,32,0.0);
+                display: flex; flex-direction: column; align-items: center; justify-content: center;
+                user-select: none; touch-action: manipulation; position: relative; }
+  .charm-slot:active { transform: scale(0.92); box-shadow: 0 0 14px var(--c); }
+  .charm-slot .ch-z { font-size: 24px; font-weight: 900; line-height: 1.1; text-shadow: 0 1px 0 rgba(255,255,255,0.4); }
+  .charm-slot .ch-n { font-size: 10px; color: #7a5a28; font-weight: 700; }
+  #charmBar.empty { background: none; }
+  .charm-empty { background: rgba(18,14,24,0.55); border: 1px dashed rgba(240,224,184,0.35); color: rgba(240,224,184,0.5);
+                 font-size: 11px; padding: 8px 12px; border-radius: 8px; white-space: nowrap; }
+
+  /* ---------- 安全屋（底部功能面板） ---------- */
+  #safehouseUI { position: fixed; left: 0; right: 0; bottom: 0; z-index: 14; display: none;
+                 background: linear-gradient(180deg, rgba(20,14,10,0.6), rgba(16,11,8,0.96) 30%);
+                 border-top: 2px solid #8a5a2a; padding: 12px 14px calc(env(safe-area-inset-bottom, 0px) + 14px); }
+  #safehouseUI.show { display: block; animation: shUp .3s ease-out; }
+  #safehouseUI.show ~ #controls { display: none; }
+  @keyframes shUp { from { transform: translateY(40px); opacity: 0; } }
+  .sh-head { display: flex; align-items: center; justify-content: space-between; }
+  .sh-title { color: #ffd873; font-size: 19px; font-weight: 800; letter-spacing: 2px; }
+  .sh-coins { display: flex; align-items: center; gap: 5px; color: #ffd873; font-weight: 700; font-size: 15px;
+              background: rgba(40,30,16,0.8); border: 1px solid #6a5a2a; border-radius: 8px; padding: 4px 10px; }
+  .sh-sub { color: #b9a888; font-size: 12px; margin: 4px 0 10px; }
+  .sh-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .sh-card { background: rgba(40,28,18,0.92); border: 1.5px solid #6a4a26; border-radius: 12px;
+             padding: 10px 6px; text-align: center; user-select: none; }
+  .sh-card:active { background: rgba(70,50,28,0.95); transform: scale(0.96); }
+  .sh-card > b { display: block; color: #ffe28a; font-size: 14px; margin-top: 4px; }
+  .sh-card > i { display: block; color: #a89878; font-size: 10.5px; font-style: normal; margin-top: 3px; line-height: 1.35; }
+  .sh-card .sh-ic { font-size: 24px; }
+  .sh-card.wide { grid-column: span 3; display: flex; align-items: center; justify-content: center; gap: 10px;
+                  padding: 10px 6px; }
+  .sh-card.wide > b { margin-top: 0; font-size: 15px; }
+  .sh-card.wide > i { margin-top: 0; }
+  .sh-pick { margin-top: 10px; background: rgba(30,20,12,0.95); border: 1px solid #6a4a26; border-radius: 12px;
+             padding: 10px; display: none; }
+  .sh-pick.show { display: block; }
+  .sh-pick-title { color: #ffd873; font-size: 13px; margin-bottom: 8px; }
+  .sh-pick-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+  .sh-pick-btn { background: rgba(60,44,24,0.9); border: 1.5px solid #8a6a36; border-radius: 10px;
+                 color: #ffe28a; font-size: 13px; font-weight: 700; padding: 10px 4px; text-align: center; }
+  .sh-pick-btn:active { background: rgba(100,76,40,0.95); }
+  .sh-pick-close { color: #8a7a5a; font-size: 12px; text-align: center; padding-top: 8px; }
+
+  /* ---------- 小游戏内嵌 ---------- */
+  #minigameOverlay { position: fixed; inset: 0; z-index: 50; background: #100a14; display: none;
+                     flex-direction: column; }
+  #minigameOverlay.show { display: flex; }
+  .mg-top { display: flex; align-items: center; gap: 12px; padding: calc(env(safe-area-inset-top, 0px) + 8px) 12px 8px;
+            background: #1a1220; border-bottom: 1px solid #4a3a5a; }
+  #mgBack { background: #3a2a4a; color: #e8d8f8; border: 1px solid #6a4a8a; border-radius: 8px;
+            padding: 7px 14px; font-size: 14px; font-weight: 700; }
+  .mg-top span { color: #cbb8ff; font-size: 14px; font-weight: 700; }
+  #mgFrame { flex: 1; width: 100%; border: none; }
+
+  /* ---------- 开场世界观卡 ---------- */
+  #introCard { position: fixed; inset: 0; z-index: 60; display: none; align-items: center; justify-content: center;
+               background: radial-gradient(ellipse at 50% 30%, rgba(60,30,60,0.92), rgba(8,5,10,0.97)); }
+  #introCard.show { display: flex; }
+  .ic-box { width: min(88vw, 400px); background: linear-gradient(180deg, #241c2e, #16101c);
+            border: 2px solid #6a5a2a; border-radius: 20px; padding: 26px 24px; text-align: center;
+            animation: popIn .4s ease-out; }
+  .ic-tag { display: inline-block; color: #ffd873; border: 1px solid #8a6a36; border-radius: 999px;
+            font-size: 12px; padding: 4px 14px; letter-spacing: 3px; margin-bottom: 12px; }
+  .ic-box h1 { color: #fff; font-size: 24px; letter-spacing: 4px; margin-bottom: 14px; }
+  .ic-box p { color: #c8b8d8; font-size: 13.5px; line-height: 1.75; margin-bottom: 10px; text-align: left; }
+  .ic-box p b { color: #ffd873; }
+  .ic-tip { color: #8a7a9a !important; font-size: 12px !important; text-align: center !important; }
+  #icStart { margin-top: 8px; background: linear-gradient(180deg, #ffb02e, #e2574c); color: #fff; border: none;
+             font-size: 17px; font-weight: 800; padding: 13px 40px; border-radius: 26px; letter-spacing: 4px; }
+  #icStart:active { transform: scale(0.95); }
+
+  /* ---------- 符纸画板升级（符头/印章/燃烧/念词） ---------- */
+  .rb-paper { background-color: #f0e0b8; border: none; padding: 6px;
+              background-image: repeating-linear-gradient(0deg, rgba(120,90,40,0.05) 0 2px, transparent 2px 5px);
+              box-shadow: inset 0 0 0 2px #b89050, inset 0 0 0 5px #f0e0b8, inset 0 0 0 6.5px rgba(184,40,32,0.65), 0 4px 16px rgba(0,0,0,0.5); }
+  .rb-fuhead { position: absolute; left: 50%; top: -4px; transform: translate(-50%, -100%);
+               color: #b82820; font-size: 13px; font-weight: 900; letter-spacing: 2px;
+               writing-mode: vertical-rl; background: rgba(240,224,184,0.9); padding: 3px 2px; border-radius: 4px; }
+  .rb-seal { position: absolute; right: 4px; bottom: 4px; color: #c03028; border: 2px solid #c03028;
+             border-radius: 4px; font-size: 11px; font-weight: 900; padding: 2px 4px; letter-spacing: 1px;
+             transform: rotate(-6deg); opacity: 0.55; }
+  .rb-seal.lit { opacity: 1; text-shadow: 0 0 10px rgba(255,80,50,0.9); animation: sealPulse 1.2s ease-in-out infinite; }
+  @keyframes sealPulse { 50% { text-shadow: 0 0 18px rgba(255,120,60,1); } }
+  .rb-paper.burn { animation: paperBurn .55s ease-in forwards; }
+  @keyframes paperBurn {
+    30% { box-shadow: inset 0 0 0 2px #b89050, 0 0 24px rgba(255,160,60,0.9); transform: scale(1.04) rotate(1deg); }
+    100% { transform: scale(0.7) rotate(6deg) translateY(-26px); opacity: 0;
+           filter: brightness(2.2) sepia(1) hue-rotate(-25deg); }
+  }
+  .rb-chant .rc-z { font-size: 84px; font-weight: 900; line-height: 1.2; text-shadow: 0 3px 14px rgba(184,40,32,0.45); }
+  .rb-chant .rc-py { color: #8a2a20; font-size: 19px; font-weight: 800; }
+  .rb-chant .rc-en { color: #7a5a38; font-size: 15px; font-weight: 700; letter-spacing: 1px; }
+  .rb-chantbar { display: flex; gap: 8px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+  .rc-snd { background: rgba(60,44,24,0.9); border: 1.5px solid #8a6a36; color: #ffe28a; border-radius: 10px;
+            padding: 9px 14px; font-size: 14px; font-weight: 700; }
+  .rc-snd:active { background: rgba(100,76,40,0.95); }
+  .rc-ok { background: linear-gradient(180deg, #ffb02e, #e2574c); color: #fff; border: none; border-radius: 10px;
+           padding: 9px 18px; font-size: 14px; font-weight: 800; }
+  .rc-ok:active { transform: scale(0.95); }
 </style>
 </head>
 <body>
@@ -181,7 +292,7 @@
     <div id="weaponChip" style="display:none; background:rgba(20,16,25,0.72); border:1px solid #6a5a2a; border-radius:8px; padding:5px 9px; font-size:13px; color:#e8d8b8; font-weight:700;"></div>
   </div>
   <div id="sceneName">第1街区 · 死亡大道</div>
-  <div id="verBadge">丧尸英语城 v3.0.0-m10</div>
+  <div id="verBadge">丧尸英语城 v3.1.0-m11</div>
   <div id="waveBanner"></div>
   <div id="hurtFx"></div>
   <div id="loadingTip">加载中...</div>
@@ -190,6 +301,40 @@
   <div id="learnCard"></div>
   <div id="micBubble"></div>
 
+  <div id="safehouseUI">
+    <div class="sh-head">
+      <div class="sh-title">🛖 茅山安全屋</div>
+      <div class="sh-coins"><span class="coin-ic"></span><b id="shCoins">0</b></div>
+    </div>
+    <div class="sh-sub">屋内灵气平和 · 伤势已回复 · 画符备战</div>
+    <div class="sh-grid">
+      <div class="sh-card" id="shTrain"><span class="sh-ic">🧘</span><b>修炼</b><i>静坐调息<br>气血全复</i></div>
+      <div class="sh-card" id="shMake"><span class="sh-ic">✍️</span><b>画符台</b><i>空白符纸 <em id="shBlank">0</em> 张<br>制符入背包</i></div>
+      <div class="sh-card" id="shShop"><span class="sh-ic">🛒</span><b>符纸铺</b><i>10金币/张<br>买空白符纸</i></div>
+      <div class="sh-card" id="shRoom"><span class="sh-ic">🛏</span><b>小屋装饰</b><i>花金币装扮<br>主角之家</i></div>
+      <div class="sh-card" id="shLeave"><span class="sh-ic">🚪</span><b>离开</b><i>重返战场<br>继续除魔</i></div>
+      <div class="sh-card" id="shGame"><span class="sh-ic">🎮</span><b>小游戏</b><i>世界语言方块<br>安心学语言</i></div>
+    </div>
+    <div class="sh-pick" id="shPick"></div>
+  </div>
+
+  <div id="minigameOverlay">
+    <div class="mg-top"><button id="mgBack">← 返回安全屋</button><span>世界语言方块 · 小游戏</span></div>
+    <iframe id="mgFrame"></iframe>
+  </div>
+
+  <div id="introCard">
+    <div class="ic-box">
+      <div class="ic-tag">虚拟地球 · 9527</div>
+      <h1>语言，就是力量</h1>
+      <p>这里是虚拟地球 9527——一个<b>言出法随</b>的世界。中文与英语蕴含最强大的能量，俄语、德语、法语次之；但拳头与刀剑依然有效——物理定律并未失效。</p>
+      <p>世界在不断<b>循环</b>。异常对抗组织查明：造成一切的始作俑者确实得到了永生——只是以他们自己也意想不到的方式。</p>
+      <p>你是被异常影响很深的美丽国人，辗转来到中国<b>茅山</b>，学会了对抗异常的办法：<b>言出法随，画符杀鬼</b>。现在，从死亡大道开始——发现循环，破解循环。</p>
+      <p class="ic-tip">画符写字 · 大声念出中英文 · 符纸背包 · 击杀4只僵尸即可回安全屋休整</p>
+      <button id="icStart">⚡ 开始除魔</button>
+    </div>
+  </div>
+
   <div id="defeatPanel">
     <div class="d-card">
       <h2>你被丧尸围困了…</h2>
@@ -197,6 +342,8 @@
       <button id="retryBtn">爬起来再战！</button>
     </div>
   </div>
+
+  <div id="charmBar"></div>
 
   <div id="controls">
     <div class="dpad">
@@ -207,20 +354,121 @@
     </div>
     <div class="right-col">
       <div class="skill-row">
-        <div class="mini-cast" id="btnVoice"><span class="big">🎤</span>喊词</div>
+        <div class="mini-cast off" id="btnVoice"><span class="big">🎤</span>喊词</div>
         <div class="mini-cast" id="btnRune"><span class="big">✍️</span>画符</div>
       </div>
       <div id="btnAttack"><span class="big">⚔️</span>砍击</div>
     </div>
   </div>
 
-  <script src="hanzi-writer.min.js?v=zcity-m10c"></script>
-  <script src="hanzi_data.js?v=zcity-m10c"></script>
-  <script src="battle/city_assets.js?v=zcity-m10c"></script>
-  <script src="battle/spell_cast.js?v=zcity-m10c"></script>
-  <script src="battle/voice_engine.js?v=zcity-m10c"></script>
-  <script src="battle/voice_wake.js?v=zcity-m10c"></script>
-  <script src="battle/rune_board.js?v=zcity-m10c"></script>
-  <script src="battle/battle_engine.js?v=zcity-m10c"></script>
+  <script src="hanzi-writer.min.js?v=zcity-m11c"></script>
+  <script src="hanzi_data.js?v=zcity-m11c"></script>
+  <script src="hero_system.js?v=zcity-m11c"></script>
+  <script src="battle/city_assets.js?v=zcity-m11c"></script>
+  <script src="battle/spell_cast.js?v=zcity-m11c"></script>
+  <script src="battle/voice_engine.js?v=zcity-m11c"></script>
+  <script src="battle/voice_wake.js?v=zcity-m11c"></script>
+  <script src="battle/charms.js?v=zcity-m11c"></script>
+  <script src="battle/rune_board.js?v=zcity-m11c"></script>
+  <script src="battle/battle_engine.js?v=zcity-m11c"></script>
+  <script>
+  (function () {
+    'use strict';
+    var $ = function (id) { return document.getElementById(id); };
+
+    /* ---------- 安全屋 UI ---------- */
+    function refreshSh() {
+      if (window.HERO) { var c = $('shCoins'); if (c) c.textContent = HERO.getCoins(); }
+      var b = $('shBlank'); if (b) b.textContent = (ZCITY.Charms ? ZCITY.Charms.blank() : 0);
+    }
+    window.__shRefresh = refreshSh;
+
+    var pick = $('shPick');
+    function showPick(title, items) {
+      var html = '<div class="sh-pick-title">' + title + '</div><div class="sh-pick-grid">';
+      items.forEach(function (it, i) { html += '<div class="sh-pick-btn" data-i="' + i + '">' + it.t + '</div>'; });
+      html += '</div><div class="sh-pick-close" id="shPickClose">收起</div>';
+      pick.innerHTML = html;
+      pick.classList.add('show');
+      var els = pick.querySelectorAll('.sh-pick-btn');
+      for (var k = 0; k < els.length; k++) {
+        (function (el) {
+          el.addEventListener('click', function () {
+            var fn = items[parseInt(el.getAttribute('data-i'), 10)] && items[parseInt(el.getAttribute('data-i'), 10)].fn;
+            if (fn) fn();
+          });
+        })(els[k]);
+      }
+      var cl = pick.querySelector('#shPickClose');
+      if (cl) cl.addEventListener('click', hidePick);
+    }
+    function hidePick() { pick.classList.remove('show'); pick.innerHTML = ''; }
+
+    $('shTrain').addEventListener('click', function () {
+      if (ZCITY.Combat) { ZCITY.Combat.healHero(999); ZCITY.Game.toast('🧘 调息完毕，气血全复'); }
+    });
+    $('shShop').addEventListener('click', function () {
+      if (!window.HERO) { ZCITY.Game.toast('钱包加载中…'); return; }
+      showPick('🛒 符纸铺 · 空白符纸（现有 ' + ZCITY.Charms.blank() + ' 张）', [
+        { t: '买 1 张<br>10 金币', fn: function () {
+            if (HERO.spendCoins(10)) { ZCITY.Charms.addBlank(1); ZCITY.Game.toast('✓ 空白符纸 +1'); refreshSh(); }
+            else ZCITY.Game.toast('金币不足 · 打僵尸赚金币'); } },
+        { t: '买 5 张<br>45 金币（9折）', fn: function () {
+            if (HERO.spendCoins(45)) { ZCITY.Charms.addBlank(5); ZCITY.Game.toast('✓ 空白符纸 +5'); refreshSh(); }
+            else ZCITY.Game.toast('金币不足（5张共45）'); } },
+        { t: '买 10 张<br>80 金币（8折）', fn: function () {
+            if (HERO.spendCoins(80)) { ZCITY.Charms.addBlank(10); ZCITY.Game.toast('✓ 空白符纸 +10'); refreshSh(); }
+            else ZCITY.Game.toast('金币不足（10张共80）'); } }
+      ]);
+    });
+    $('shMake').addEventListener('click', function () {
+      var blankN = ZCITY.Charms ? ZCITY.Charms.blank() : 0;
+      if (!blankN) { ZCITY.Game.toast('空白符纸不足 · 先去符纸铺购买'); return; }
+      var pool = ZCITY.Spells.pool();
+      showPick('✍️ 画符台 · 选字制符（空白符纸 ×' + blankN + '）', pool.map(function (ch) {
+        var sp = ZCITY.Spells.SPELLS[ch];
+        return { t: '<span style="font-size:22px;color:' + sp.color + '">' + ch + '</span><br>' + sp.py + ' · ' + sp.en,
+                 fn: function () {
+                   ZCITY.Charms.addBlank(-1);
+                   hidePick();
+                   ZCITY.Rune.open('make', { char: ch, onDone: function (c) {
+                     ZCITY.Charms.add(c, 1);
+                     ZCITY.Game.toast('📜 ' + c + '符已入包！战斗中点符纸直接激发');
+                     refreshSh();
+                   } });
+                 } };
+      }));
+    });
+    $('shRoom').addEventListener('click', function () {
+      if (window.HERO && HERO.openRoom) HERO.openRoom();
+      else ZCITY.Game.toast('小屋系统加载中…');
+    });
+    $('shLeave').addEventListener('click', function () {
+      hidePick();
+      if (ZCITY.Combat) ZCITY.Combat.go('street', 140);
+    });
+    $('shGame').addEventListener('click', function () {
+      var o = $('minigameOverlay');
+      o.classList.add('show');
+      var f = $('mgFrame');
+      if (!f.getAttribute('data-loaded')) { f.src = 'game.html'; f.setAttribute('data-loaded', '1'); }
+      else f.src = 'game.html';
+    });
+    $('mgBack').addEventListener('click', function () {
+      $('minigameOverlay').classList.remove('show');
+      $('mgFrame').src = 'about:blank';
+      $('mgFrame').removeAttribute('data-loaded');
+    });
+
+    /* ---------- 开场世界观卡（首次显示） ---------- */
+    var seen = false;
+    try { seen = localStorage.getItem('elc_intro9527') === '1'; } catch (e) { }
+    if (!seen) $('introCard').classList.add('show');
+    $('icStart').addEventListener('click', function () {
+      try { localStorage.setItem('elc_intro9527', '1'); } catch (e) { }
+      $('introCard').classList.remove('show');
+    });
+  })();
+  </script>
 </body>
 </html>

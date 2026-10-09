@@ -425,6 +425,8 @@ window.ZCITY = window.ZCITY || {};
     if (ZCITY.Game && ZCITY.Game.micState) ZCITY.Game.micState(false);
   }
   function boot() {
+    /* m11：语音体验差暂时屏蔽（ZCITY_CFG.voice=false），代码保留日后恢复 */
+    if (window.ZCITY_CFG && window.ZCITY_CFG.voice === false) return;
     ensureDbg();
     loadPool(S.pool ? S.pool() : Object.keys(S.SPELLS));
     var hinted = false;
