@@ -92,6 +92,8 @@
   .mini-cast .big { font-size: 19px; line-height: 1; }
   .mini-cast:active { background: rgba(150,110,30,0.8); }
   .mini-cast.listening { background: rgba(200,60,50,0.85); border-color: #ff9c8a;
+               animation: micPulse 1.6s ease-in-out infinite; }
+  @keyframes micPulse { 0%,100% { box-shadow: 0 0 2px 2px rgba(255,120,90,0.25); } 50% { box-shadow: 0 0 8px 4px rgba(255,120,90,0.65); } }
                          animation: micPulse 0.8s ease-in-out infinite; }
   @keyframes micPulse { 50% { box-shadow: 0 0 22px rgba(255,120,100,0.8); } }
   #btnAttack { width: 82px; height: 82px; border-radius: 20px; border: 2px solid #a84838;
@@ -179,7 +181,7 @@
     <div id="weaponChip" style="display:none; background:rgba(20,16,25,0.72); border:1px solid #6a5a2a; border-radius:8px; padding:5px 9px; font-size:13px; color:#e8d8b8; font-weight:700;"></div>
   </div>
   <div id="sceneName">第1街区 · 死亡大道</div>
-  <div id="verBadge">丧尸英语城 v3.0.0-m09</div>
+  <div id="verBadge">丧尸英语城 v3.0.0-m10</div>
   <div id="waveBanner"></div>
   <div id="hurtFx"></div>
   <div id="loadingTip">加载中...</div>
@@ -212,12 +214,13 @@
     </div>
   </div>
 
-  <script src="hanzi-writer.min.js?v=zcity-m09d"></script>
-  <script src="hanzi_data.js?v=zcity-m09d"></script>
-  <script src="battle/city_assets.js?v=zcity-m09d"></script>
-  <script src="battle/spell_cast.js?v=zcity-m09d"></script>
-  <script src="battle/voice_engine.js?v=zcity-m09d"></script>
-  <script src="battle/rune_board.js?v=zcity-m09d"></script>
-  <script src="battle/battle_engine.js?v=zcity-m09d"></script>
+  <script src="hanzi-writer.min.js?v=zcity-m10c"></script>
+  <script src="hanzi_data.js?v=zcity-m10c"></script>
+  <script src="battle/city_assets.js?v=zcity-m10c"></script>
+  <script src="battle/spell_cast.js?v=zcity-m10c"></script>
+  <script src="battle/voice_engine.js?v=zcity-m10c"></script>
+  <script src="battle/voice_wake.js?v=zcity-m10c"></script>
+  <script src="battle/rune_board.js?v=zcity-m10c"></script>
+  <script src="battle/battle_engine.js?v=zcity-m10c"></script>
 </body>
 </html>

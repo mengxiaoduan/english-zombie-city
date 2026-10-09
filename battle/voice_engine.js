@@ -8,7 +8,7 @@ window.ZCITY = window.ZCITY || {};
   'use strict';
   var S = ZCITY.Spells;
 
-  var panel = null, rec = null, listening = false, holdTimer = 0;
+  var panel = null, panelTarget = null, rec = null, listening = false, holdTimer = 0;
   var srAvailable = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 
   /* ---------- 拼音点选面板 ----------
@@ -24,6 +24,7 @@ window.ZCITY = window.ZCITY || {};
 
     panel = document.createElement('div');
     panel.id = 'voicePanel';
+    panelTarget = { ch: target, cb: opts.onPickup || null };   // 供声纹引擎免按命中时接管
     var opts2 = [sp.py];
     var pool = ['huǒ', 'shuǐ', 'shí', 'shān', 'yào', 'bàng', 'gùn', 'dāo', 'fàn', 'tǔ', 'tiān', 'yuè', 'rì', 'kǒu'];
     while (opts2.length < 4) {
@@ -75,6 +76,7 @@ window.ZCITY = window.ZCITY || {};
   }
   function closePanel() {
     if (panel) { panel.remove(); panel = null; }
+    panelTarget = null;
   }
 
   /* ---------- 真实语音识别 ---------- */
@@ -133,23 +135,36 @@ window.ZCITY = window.ZCITY || {};
     setTimeout(function () { b.classList.remove('show'); }, 1300);
   }
 
-  /* ---------- 入口：按住说话 / 点击面板 ---------- */
+  /* ---------- 入口：免按声纹优先（引擎C），面板兜底 ---------- */
   function onMicDown(ev) {
     ev.preventDefault && ev.preventDefault();
-    if (ZCITY.Spells.locked()) { ZCITY.Game.toast('法力恢复中…'); return; }
-    var started = startListen();
-    if (!started) {
-      // 语音服务不可用（国内网络常见）→ 拼音面板
-      openPanel(srAvailable ? '语音没听到，改用拼音' : '语音服务不可用 · 拼音施法');
+    var W = ZCITY.VoiceWake;
+    /* 未开启 → 点一下授权并开启连续监听（iOS Safari 无 SpeechRecognition，这是唯一真语音路径） */
+    if (W && !W.isOn()) {
+      W.enable().then(function (ok) {
+        if (ok) {
+          var b = document.getElementById('micBubble');
+          if (b) {
+            b.textContent = '🎤 免按喊词已开启 · 直接喊字！';
+            b.classList.add('show');
+            setTimeout(function () { b.classList.remove('show'); }, 1600);
+          }
+        } else {
+          openPanel(W.denied() ? '麦克风权限被拒 · 拼音施法' : '麦克风不可用 · 拼音施法');
+        }
+      });
       return;
     }
-    holdTimer = setTimeout(function () { stopListen(); }, 6000);
+    /* 已在监听 → 打开拼音面板备用（嘈杂环境的可靠兜底）；喊词仍然并行有效 */
+    if (ZCITY.Spells.locked()) { ZCITY.Game.toast('法力恢复中…'); return; }
+    openPanel('拼音备用 · 或直接喊字');
   }
   function onMicUp() { if (listening) stopListen(); }
 
   ZCITY.Voice = {
     openPanel: openPanel,
     closePanel: closePanel,
+    panelTarget: function () { return panelTarget; },
     onMicDown: onMicDown,
     onMicUp: onMicUp,
     srAvailable: function () { return srAvailable; },

@@ -56,6 +56,8 @@ window.ZCITY = window.ZCITY || {};
   function pickSpellKey() { return activePool[Math.floor(Math.random() * activePool.length)]; }
   function setPool(name) {
     activePool = (CHAPTER_POOLS[name] || CHAPTER_POOLS.street).slice();
+    /* 免按声纹引擎跟随章节词池加载参考读音 */
+    if (ZCITY.VoiceWake && ZCITY.VoiceWake.loadPool) ZCITY.VoiceWake.loadPool(activePool);
   }
 
   /* 找目标：同字僵尸中最近者；无同字 → 最近僵尸（错属性减半）。入场中也可先手打击 */
@@ -125,6 +127,8 @@ window.ZCITY = window.ZCITY || {};
     speak(ch);
   }
   function speak(text) {
+    /* 声纹免按引擎：自己播读音时抑制识别，防止喇叭声触发施法 */
+    if (ZCITY.VoiceWake) ZCITY.VoiceWake.hold(2800);
     try {
       var u = new SpeechSynthesisUtterance(text);
       u.lang = 'zh-CN'; u.rate = 0.75;
@@ -176,6 +180,7 @@ window.ZCITY = window.ZCITY || {};
     init: init,
     pickSpellKey: pickSpellKey,
     setPool: setPool,
+    pool: function () { return activePool.slice(); },
     karma: function () { return { light: karma.light, dark: karma.dark, neutral: karma.neutral }; },
     tick: tick,
     onVoiceHit: onVoiceHit,

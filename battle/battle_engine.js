@@ -1491,6 +1491,7 @@ window.ZCITY = window.ZCITY || {};
       spellStrike: spellStrike
     });
     bindUi();
+    if (ZCITY.VoiceWake) ZCITY.VoiceWake.boot();   // 免按声纹引擎：进战斗即持续监听
     document.addEventListener('visibilitychange', function () {
       if (document.hidden) { running = false; cancelAnimationFrame(rafId); }
       else if (!running) { running = true; lastT = performance.now(); rafId = requestAnimationFrame(tick); }
