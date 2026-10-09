@@ -154,6 +154,8 @@ window.ZCITY = window.ZCITY || {};
   var defeated = false;
   var zKill = 0;                                   // 距安全屋解锁的击杀计数
   var SAFE_KILLS = 4;                              // 用户定案：击败4只僵尸开安全屋
+  var energy = 100;                                // 灵力（虚空画符消耗；安全屋制符不耗）
+  var ENERGY_MAX = 100, RUNE_COST = 30;
 
   function bandTop() { return view.groundY + WALK.bandTop; }
   function heroWallet(n) { try { if (window.HERO && window.HERO.addCoins && n > 0) window.HERO.addCoins(n); } catch (e) { } }
@@ -305,6 +307,7 @@ window.ZCITY = window.ZCITY || {};
         var wasBoss = zone.waves[zone.waves.length - 1][0][0] === 'BOSS';
         enc.phase = 'clear'; enc.lockCam = -1;
         hero.hp = Math.min(hero.hpMax, hero.hp + 12);
+        energy = Math.min(ENERGY_MAX, energy + 30);
         coinsCount += wasBoss ? 40 : 5; coinPop = 0.3; heroWallet(wasBoss ? 40 : 5);
         banner(wasBoss ? '👑 BOSS 击破！ +40金币' : '✔ 区域肃清  +5金币', wasBoss ? '#ffb02e' : '#9ce89c');
         S.clear();
@@ -434,6 +437,7 @@ window.ZCITY = window.ZCITY || {};
     z.dead = true; z.deadT = 0; z.charWin = null;
     S.die();
     zKill++;
+    energy = Math.min(ENERGY_MAX, energy + 10);
     if (zKill === SAFE_KILLS) {
       updateHomeBtn();
       banner('🏠 安全屋已开启！', '#9ce89c');
@@ -473,6 +477,7 @@ window.ZCITY = window.ZCITY || {};
     if (p) p.classList.remove('show');
     defeated = false;
     hero.hp = hero.hpMax; hero.invulnT = 1.6;
+    energy = Math.max(energy, 60);
     zombies.length = 0; enc.queue.length = 0;
     if (enc.allClear || enc.phase === 'clear' || !enc.zones) {
       enc.lockCam = -1;
@@ -1317,6 +1322,8 @@ window.ZCITY = window.ZCITY || {};
   }
   function updateHud() {
     if (hud.hp) hud.hp.style.width = Math.max(0, hero.hp / hero.hpMax * 100) + '%';
+    var enEl = document.getElementById('energyFill');
+    if (enEl) enEl.style.width = Math.max(0, energy / ENERGY_MAX * 100) + '%';
     if (hud.coins) {
       hud.coins.textContent = coinsCount;
       hud.coins.style.transform = coinPop > 0 ? 'scale(' + (1 + coinPop * 0.5) + ')' : '';
@@ -1343,8 +1350,12 @@ window.ZCITY = window.ZCITY || {};
     var dt = rdt;
     if (fx.hitstop > 0) { fx.hitstop -= rdt; dt = 0; }
     if (fx.shakeT > 0) fx.shakeT -= rdt;
-    if (document.getElementById('voicePanel') || document.getElementById('runeBoard')) {
+    energy = Math.min(ENERGY_MAX, energy + 2 * dt);          // 灵力缓慢回气
+    if (document.getElementById('voicePanel')) {              // 拾取问答：冻结保安全
       dt = 0;
+      keys.left = keys.right = keys.up = keys.down = false;
+    }
+    if (document.getElementById('runeBoard')) {               // 虚空画符：世界继续运行（会挨打），仅锁移动
       keys.left = keys.right = keys.up = keys.down = false;
     }
 
@@ -1510,7 +1521,8 @@ window.ZCITY = window.ZCITY || {};
     document.getElementById('btnRune').addEventListener('click', function () {
       audio();
       if (ZCITY.Spells.locked()) { showToast('法力恢复中…'); return; }
-      ZCITY.Rune.open('main');
+      if (energy < RUNE_COST) { showToast('灵力不足（需 ' + RUNE_COST + '）· 杀僵尸或肃清回气', 2200); return; }
+      if (ZCITY.Rune.open('main')) energy -= RUNE_COST;       // 虚空画符：开板即耗灵
     });
     document.getElementById('homeBtn').addEventListener('click', function () {
       audio();
@@ -1645,7 +1657,7 @@ window.ZCITY = window.ZCITY || {};
         scene: scene.id, block: enc.block, encPhase: enc.phase, zoneIdx: enc.zoneIdx, waveIdx: enc.waveIdx,
         lockCam: enc.lockCam, queue: enc.queue.length, zombies: zombies.length,
         dead: zombies.filter(function (z) { return z.dead; }).length,
-        heroHp: hero.hp, coins: coinsCount, combo: fx.combo, allClear: enc.allClear,
+        heroHp: hero.hp, energy: Math.round(energy), coins: coinsCount, combo: fx.combo, allClear: enc.allClear,
         weapon: hero.weapon ? hero.weapon.ch : null, items: items.map(function (i2) { return i2.ch; }),
         bossSpells: fx.bossSpells.length,
         spells: fx.spells.length, parts: fx.parts.length, dmgNums: fx.dmgNums.length, coinFly: fx.coins.length

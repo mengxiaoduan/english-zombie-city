@@ -22,6 +22,10 @@
   #hpWrap { flex: 1; max-width: 190px; height: 14px; background: rgba(0,0,0,0.55); border: 1px solid #6a3050;
             border-radius: 7px; overflow: hidden; }
   #hpFill { height: 100%; width: 100%; background: linear-gradient(90deg, #e2574c, #ff8a5c); transition: width .2s; }
+  #barsWrap { flex: 1; max-width: 190px; display: flex; flex-direction: column; gap: 3px; }
+  #energyWrap { height: 6px; background: rgba(0,0,0,0.55); border: 1px solid #2a5a6a;
+                border-radius: 3px; overflow: hidden; }
+  #energyFill { height: 100%; width: 100%; background: linear-gradient(90deg, #3ec8e8, #7ef0ff); transition: width .25s; }
   #coinChip { display: flex; align-items: center; gap: 4px; background: rgba(20,16,25,0.72); border: 1px solid #6a5a2a;
               border-radius: 8px; padding: 5px 9px; font-size: 14px; color: #ffd873; font-weight: 700; }
   #coinNum { display: inline-block; transition: transform .12s; }
@@ -286,13 +290,14 @@
 
   <div id="hud">
     <button id="homeBtn">🏠 安全屋</button>
-    <div id="hpWrap"><div id="hpFill"></div></div>
+    <div id="barsWrap"><div id="hpWrap"><div id="hpFill"></div></div>
+    <div id="energyWrap" title="灵力 · 虚空画符30/次"><div id="energyFill"></div></div></div>
     <div id="coinChip"><span class="coin-ic"></span><span id="coinNum">0</span></div>
     <div id="karmaChip" style="display:flex; background:rgba(20,16,25,0.72); border:1px solid #6a4a5a; border-radius:8px; padding:5px 9px; font-size:13px; color:#ffb0c8; font-weight:700;">💛 0</div>
     <div id="weaponChip" style="display:none; background:rgba(20,16,25,0.72); border:1px solid #6a5a2a; border-radius:8px; padding:5px 9px; font-size:13px; color:#e8d8b8; font-weight:700;"></div>
   </div>
   <div id="sceneName">第1街区 · 死亡大道</div>
-  <div id="verBadge">丧尸英语城 v3.1.0-m11</div>
+  <div id="verBadge">丧尸英语城 v3.2.0-m12</div>
   <div id="waveBanner"></div>
   <div id="hurtFx"></div>
   <div id="loadingTip">加载中...</div>
@@ -306,7 +311,7 @@
       <div class="sh-title">🛖 茅山安全屋</div>
       <div class="sh-coins"><span class="coin-ic"></span><b id="shCoins">0</b></div>
     </div>
-    <div class="sh-sub">屋内灵气平和 · 伤势已回复 · 画符备战</div>
+    <div class="sh-sub">屋内灵气平和 · 伤势已回复 · 制符需经「永固加持」方可在战场使用</div>
     <div class="sh-grid">
       <div class="sh-card" id="shTrain"><span class="sh-ic">🧘</span><b>修炼</b><i>静坐调息<br>气血全复</i></div>
       <div class="sh-card" id="shMake"><span class="sh-ic">✍️</span><b>画符台</b><i>空白符纸 <em id="shBlank">0</em> 张<br>制符入背包</i></div>
@@ -355,22 +360,22 @@
     <div class="right-col">
       <div class="skill-row">
         <div class="mini-cast off" id="btnVoice"><span class="big">🎤</span>喊词</div>
-        <div class="mini-cast" id="btnRune"><span class="big">✍️</span>画符</div>
+        <div class="mini-cast" id="btnRune"><span class="big">✍️</span>画符30灵</div>
       </div>
       <div id="btnAttack"><span class="big">⚔️</span>砍击</div>
     </div>
   </div>
 
-  <script src="hanzi-writer.min.js?v=zcity-m11c"></script>
-  <script src="hanzi_data.js?v=zcity-m11c"></script>
-  <script src="hero_system.js?v=zcity-m11c"></script>
-  <script src="battle/city_assets.js?v=zcity-m11c"></script>
-  <script src="battle/spell_cast.js?v=zcity-m11c"></script>
-  <script src="battle/voice_engine.js?v=zcity-m11c"></script>
-  <script src="battle/voice_wake.js?v=zcity-m11c"></script>
-  <script src="battle/charms.js?v=zcity-m11c"></script>
-  <script src="battle/rune_board.js?v=zcity-m11c"></script>
-  <script src="battle/battle_engine.js?v=zcity-m11c"></script>
+  <script src="hanzi-writer.min.js?v=zcity-m12a"></script>
+  <script src="hanzi_data.js?v=zcity-m12a"></script>
+  <script src="hero_system.js?v=zcity-m12a"></script>
+  <script src="battle/city_assets.js?v=zcity-m12a"></script>
+  <script src="battle/spell_cast.js?v=zcity-m12a"></script>
+  <script src="battle/voice_engine.js?v=zcity-m12a"></script>
+  <script src="battle/voice_wake.js?v=zcity-m12a"></script>
+  <script src="battle/charms.js?v=zcity-m12a"></script>
+  <script src="battle/rune_board.js?v=zcity-m12a"></script>
+  <script src="battle/battle_engine.js?v=zcity-m12a"></script>
   <script>
   (function () {
     'use strict';
@@ -431,11 +436,24 @@
                  fn: function () {
                    ZCITY.Charms.addBlank(-1);
                    hidePick();
-                   ZCITY.Rune.open('make', { char: ch, onDone: function (c) {
-                     ZCITY.Charms.add(c, 1);
-                     ZCITY.Game.toast('📜 ' + c + '符已入包！战斗中点符纸直接激发');
-                     refreshSh();
-                   } });
+                   ZCITY.Rune.open('make', { char: ch, title: '✍️ 制「' + ch + '」符 · 写完还需永固加持',
+                     onDone: function (c) {
+                       /* 符成 → 永固加持（连写 永·固 两字，永字八法练笔） */
+                       ZCITY.Rune.open('make', {
+                         sequence: ['永', '固'],
+                         meta: { py: 'yǒng gù', en: 'enduring', color: '#ffd873' },
+                         title: '🖋 永固加持 · 连写「永固」（永字八法）',
+                         onDone: function () {
+                           ZCITY.Charms.add(c, 1);
+                           ZCITY.Game.toast('📜 ' + c + '符 永固成符！战场可直接激发');
+                           refreshSh();
+                         },
+                         onAbandon: function () {
+                           ZCITY.Game.toast('未完成永固，符纸化作飞灰…（纸已消耗）', 2400);
+                         }
+                       });
+                     }
+                   });
                  } };
       }));
     });
