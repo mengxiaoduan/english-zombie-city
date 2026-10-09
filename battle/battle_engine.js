@@ -14,7 +14,13 @@ window.ZCITY = window.ZCITY || {};
     '饭': { py: 'fàn',  en: 'rice',     kind: 'heal',   heal: 38, color: '#ffd873' },
     '药': { py: 'yào',  en: 'medicine', kind: 'heal',   heal: 65, color: '#9ce89c' },
     '棒': { py: 'bàng', en: 'club',     kind: 'weapon', bonus: 16, color: '#c9a86a' },
-    '刀': { py: 'dāo',  en: 'knife',    kind: 'weapon', bonus: 30, color: '#d8d8e8' }
+    '刀': { py: 'dāo',  en: 'knife',    kind: 'weapon', bonus: 30, color: '#d8d8e8' },
+    /* 第一章·暴食餐厅/厨房 */
+    '米': { py: 'mǐ',   en: 'rice',     kind: 'heal',   heal: 30, color: '#f5eeda' },
+    '汤': { py: 'tāng', en: 'soup',     kind: 'heal',   heal: 42, color: '#f0c890' },
+    '甜': { py: 'tián', en: 'sweet',    kind: 'heal',   heal: 25, color: '#ffa8d8' },
+    '面': { py: 'miàn', en: 'noodles',  kind: 'heal',   heal: 35, color: '#e8d890' },
+    '肉': { py: 'ròu',  en: 'meat',     kind: 'heal',   heal: 48, color: '#e88a7a' }
   };
 
   /* ---------- 街区模板（无尽递进） ---------- */
@@ -46,6 +52,18 @@ window.ZCITY = window.ZCITY || {};
     { x: 300, waves: [[['CLR', 'R', 0.6], ['CLR', 'L', 1.8]]] }
   ];
 
+  /* 第一章·暴食：餐厅(前5难)→厨房(后5难) */
+  var DINING_ZONES = [
+    { x: 240, waves: [[['CHEF', 'R', 0.6], ['CHEF', 'R', 1.9]]] },
+    { x: 520, waves: [[['CHEF', 'R', 0.6], ['WAIT', 'R', 1.5], ['CHEF', 'L', 2.6]]] },
+    { x: 740, waves: [[['WAIT', 'R', 0.5], ['CHEF', 'R', 1.4], ['WAIT', 'L', 2.4]]] }
+  ];
+  var KITCHEN_ZONES = [
+    { x: 240, waves: [[['CHEF', 'R', 0.6], ['CHEF', 'L', 1.8]]] },
+    { x: 520, waves: [[['COOK', 'R', 0.8], ['WAIT', 'L', 2.0]]] },
+    { x: 740, waves: [[['GLUT', 'R', 1.2]]] }               // 第10难：暴食Boss
+  ];
+
   var SCENES = {
     street: {
       id: 'street', name: '第1街区 · 死亡大道', worldW: 1700, indoor: false,
@@ -53,7 +71,8 @@ window.ZCITY = window.ZCITY || {};
       doors: [
         { x: 1380, label: '进入医院', to: 'hospital', backX: 120, w: 58 },
         { x: 1560, label: '进入便利店', to: 'store', backX: 1500, w: 58 }
-      ]
+      ],
+      chapterDoor: { x: 1680, label: '第一章 · 暴食食堂', to: 'dining', backX: 100, w: 64, chapter: 1 }
     },
     hospital: {
       id: 'hospital', name: '仁爱医院 · 病房区', worldW: 900, indoor: true,
@@ -70,6 +89,22 @@ window.ZCITY = window.ZCITY || {};
         { x: 60, label: '回到街道', to: 'street', backX: 1540, w: 54 },
         { x: 700, label: '深入下一街区', to: 'street', backX: 140, w: 60, next: true }
       ]
+    },
+    dining: {
+      id: 'dining', name: '第一章 · 暴食堂（餐厅）', worldW: 900, indoor: true,
+      spawn: { x: 100 }, zones: DINING_ZONES,
+      doors: [
+        { x: 60, label: '回到街道', to: 'street', backX: 1660, w: 54 },
+        { x: 850, label: '进入厨房', to: 'kitchen', backX: 100, w: 60 }
+      ]
+    },
+    kitchen: {
+      id: 'kitchen', name: '第一章 · 暴食堂（厨房）', worldW: 900, indoor: true,
+      spawn: { x: 100 }, zones: KITCHEN_ZONES,
+      doors: [
+        { x: 60, label: '回到餐厅', to: 'dining', backX: 820, w: 54 }
+      ],
+      bossDoor: { x: 860, label: '下一章 · 敬请期待', to: 'street', backX: 140, w: 60, next: true, locked: true }
     }
   };
 
@@ -88,7 +123,12 @@ window.ZCITY = window.ZCITY || {};
     DOC: { hp: 60,  speed: 34, dmg: 14, coin: 4,  dispH: 104, windup: 0.5,  interruptible: true, anim: 'DOC' },
     NUR: { hp: 40,  speed: 78, dmg: 10, coin: 4,  dispH: 92,  windup: 0.36, interruptible: true, anim: 'NUR' },
     CLR: { hp: 45,  speed: 44, dmg: 10, coin: 4,  dispH: 98,  windup: 0.5,  interruptible: true, anim: 'CLR' },
-    BOSS:{ hp: 600, speed: 24, dmg: 28, coin: 40, dispH: 210, windup: 0.7,  interruptible: false, anim: 'BOSS' }
+    BOSS:{ hp: 600, speed: 24, dmg: 28, coin: 40, dispH: 210, windup: 0.7,  interruptible: false, anim: 'BOSS' },
+    /* 第一章·暴食 */
+    CHEF: { hp: 55,  speed: 40, dmg: 12, coin: 4, dispH: 102, windup: 0.5,  interruptible: true,  anim: 'CHEF' },
+    WAIT: { hp: 38,  speed: 74, dmg: 10, coin: 4, dispH: 92,  windup: 0.36, interruptible: true,  anim: 'WAIT' },
+    COOK: { hp: 140, speed: 30, dmg: 20, coin: 6, dispH: 130, windup: 0.55, interruptible: false, anim: 'COOK' },
+    GLUT: { hp: 750, speed: 22, dmg: 30, coin: 60, dispH: 220, windup: 0.7,  interruptible: false, anim: 'GLUT' }   // 暴食Boss
   };
   var STRIKE = { dur: 0.18, speed: 120 };
 
@@ -181,6 +221,7 @@ window.ZCITY = window.ZCITY || {};
              weapon: null };
   }
   function zStat(t) { return ZSTAT[t] || ZSTAT.A; }
+  function isBossT(t) { return t === 'BOSS' || t === 'GLUT'; }
   function atkDmg() { return ATK.dmg + (hero.weapon ? hero.weapon.bonus : 0); }
 
   function spawnZombieNow(type, side) {
@@ -197,7 +238,7 @@ window.ZCITY = window.ZCITY || {};
       phase: Math.random() * 10, entering: true,
       windup: 0, atkCd: enc.block === 1 ? 2.0 : 1.2, atkT: 0, hurtT: 0, kb: 0, charWin: null,
       strikeT: 0, strikeDir: 1,
-      bossT: 5.5, shout: null, shoutT: 0,           // Boss 技能
+      bossT: 5.5, shout: null, shoutT: 0, buffT: 0,          // Boss 技能
       dead: false, deadT: 0,
       spell: SP ? SP.pickSpellKey() : '火'
     });
@@ -257,10 +298,20 @@ window.ZCITY = window.ZCITY || {};
         if (enc.zoneIdx >= enc.zones.length - 1) {
           enc.allClear = true;
           if (wasBoss) {
-            if (scene.bossDoor) scene.doors.push(scene.bossDoor);   // 击败Boss开启下一街区门
-            setTimeout(function () { showToast('医院净化完成！右侧之门已开启 →', 3000); }, 1400);
+            if (scene.bossDoor) {
+              scene.bossDoor.locked = false;
+              scene.doors.push(scene.bossDoor);
+            }
+            if (scene.id === 'kitchen') {
+              setTimeout(function () { showToast('👑 第一章「暴食」通关！黑暗仍未终结…', 3200); }, 1400);
+            } else {
+              setTimeout(function () { showToast('医院净化完成！右侧之门已开启 →', 3000); }, 1400);
+            }
           } else if (scene.id === 'street') {
-            setTimeout(function () { showToast('街区已肃清！医院 🏥 或便利店 🏪 补给', 3000); }, 1400);
+            if (scene.chapterDoor && scene.doors.indexOf(scene.chapterDoor) < 0) {
+              scene.doors.push(scene.chapterDoor);           // 街区肃清 → 开启章节金门
+            }
+            setTimeout(function () { showToast('街区已肃清！医院🏥 便利店🏪 或章节金门✨', 3200); }, 1400);
           }
         }
       }
@@ -290,6 +341,10 @@ window.ZCITY = window.ZCITY || {};
       items.push({ ch: '水', x: 420 }, { ch: '药', x: 660 });
     } else if (scene.id === 'store') {
       items.push({ ch: '饭', x: 380 }, { ch: '水', x: 460 }, { ch: '棒', x: 520 }, { ch: '刀', x: 580 });
+    } else if (scene.id === 'dining') {
+      items.push({ ch: '米', x: 300 }, { ch: '汤', x: 560 }, { ch: '甜', x: 700 });
+    } else if (scene.id === 'kitchen') {
+      items.push({ ch: '面', x: 320 }, { ch: '肉', x: 520 });
     }
   }
   function nearItem() {
@@ -341,7 +396,7 @@ window.ZCITY = window.ZCITY || {};
     for (var i = 0; i < zombies.length; i++) {
       var z = zombies[i];
       if (z.dead) continue;
-      if (z.type === 'BOSS' && z.entering) continue;         // Boss 入场演出期免疫
+      if (isBossT(z.type) && z.entering) continue;            // Boss 入场演出期免疫
       var dx = (z.x - hero.x) * hero.face;
       if (dx > -10 && dx < ATK.reach && Math.abs(z.y - hero.y) < ATK.arc) {
         z.hp -= atkDmg();
@@ -431,11 +486,11 @@ window.ZCITY = window.ZCITY || {};
   function spellHit(p) {
     var z = p.z;
     if (!z || z.dead) return;
-    if (z.type === 'BOSS' && z.entering) return;             // Boss 入场演出期免疫法术
+    if (isBossT(z.type) && z.entering) return;               // Boss 入场演出期免疫法术
     z.hp -= p.dmg;
     z.hurtT = 0.22;
     z.windup = 0;
-    z.kb = (z.x >= hero.x ? 1 : -1) * (p.doubled ? 220 : 110) * (z.type === 'C' || z.type === 'BOSS' ? 0.4 : 1);
+    z.kb = (z.x >= hero.x ? 1 : -1) * (p.doubled ? 220 : 110) * (z.type === 'C' || isBossT(z.type) ? 0.4 : 1);
     fx.dmgNums.push({
       x: z.x, y: z.y - z.dispH - 22, txt: (p.doubled ? '双倍 ' : '') + p.dmg,
       t: 0.9, big: p.doubled, color: p.color
@@ -461,31 +516,66 @@ window.ZCITY = window.ZCITY || {};
     }
   }
 
-  /* ---------- Boss 技能（喊词 → 字弹攻击，可上下走位躲避） ---------- */
+  /* ---------- Boss 技能（喊词施法，技能与词义关联） ---------- */
+  var BOSS_SKILLS = {
+    BOSS: ['火', '水', '石', '山'],                            // 巨型医生：元素字弹
+    GLUT: ['吃', '大', '饭']                                   // 暴食：吃(吞币)/大(巨大化)/饭(回血)
+  };
   function bossTick(z, dt) {
     if (z.dead || z.entering) return;
     z.bossT -= dt;
     if (z.bossT <= 0 && !z.shout) {
-      var keys2 = Object.keys(SP.SPELLS);
-      z.shout = keys2[Math.floor(Math.random() * keys2.length)];
+      var pool2 = BOSS_SKILLS[z.type] || Object.keys(SP.SPELLS);
+      z.shout = pool2[Math.floor(Math.random() * pool2.length)];
       z.shoutT = 1.2;
-      z.bossT = 8 + Math.random() * 3;
+      z.bossT = (z.type === 'GLUT' ? 6.5 : 8) + Math.random() * 3;
       S.wave();
     }
     if (z.shout) {
       z.shoutT -= dt;
       if (z.shoutT <= 0) {
-        // 发射 Boss 字弹：飞向主角当前位置（发射瞬间快照，可走位躲开）
-        var sp = SP.SPELLS[z.shout];
-        fx.bossSpells.push({
-          ch: z.shout, color: sp.color,
-          x: z.x - camera.x, y: z.y - z.dispH * 0.6,
-          tx: hero.x - camera.x, ty: hero.y - 46,
-          t: 0, dur: 1.5, dmg: 20
-        });
-        if (sp.kind === 'fire') S.fire(); else if (sp.kind === 'water') S.water(); else S.stone();
+        var ch = z.shout;
         z.shout = null;
+        if (z.type === 'GLUT') execGluttonySkill(z, ch);      // 暴食特殊技能
+        else {                                                 // 通用：字弹攻击
+          var sp = SP.SPELLS[ch];
+          fx.bossSpells.push({
+            ch: ch, color: sp.color,
+            x: z.x - camera.x, y: z.y - z.dispH * 0.6,
+            tx: hero.x - camera.x, ty: hero.y - 46,
+            t: 0, dur: 1.5, dmg: 20
+          });
+          if (sp.kind === 'fire') S.fire(); else if (sp.kind === 'water') S.water(); else S.stone();
+        }
       }
+    }
+    if (z.buffT > 0) {                                         // 「大」巨大化增益
+      z.buffT -= dt;
+      z.dispH = zStat(z.type).dispH * (1 + 0.25 * Math.min(1, z.buffT / 3));
+      if (z.buffT <= 0) z.dispH = zStat(z.type).dispH;
+    }
+  }
+  function execGluttonySkill(z, ch) {
+    if (ch === '吃') {                                         // 吃：吞噬玩家金币
+      var bite = Math.min(coinsCount, 4 + Math.floor(Math.random() * 6));
+      if (bite > 0) {
+        coinsCount -= bite;
+        fx.dmgNums.push({ x: hero.x, y: hero.y - 116, txt: '被吃掉 ' + bite + ' 金币！', t: 1.1, color: '#ff9c6b' });
+        for (var c = 0; c < Math.min(bite, 8); c++) {         // 金币反向飞向Boss
+          fx.coins.push({ sx: view.w - 64, sy: 38, t: 0, dur: 0.6, delay: c * 0.05,
+            cx: (Math.random() - 0.5) * 160, arc: 90, backTo: z });
+        }
+        S.rock();
+      }
+    } else if (ch === '大') {                                  // 大：巨大化+伤害提升
+      z.buffT = 4; z.dmg += 4;
+      fx.dmgNums.push({ x: z.x, y: z.y - z.dispH - 40, txt: '变大！', t: 1, color: '#ffb02e', big: true });
+      S.boss();
+    } else if (ch === '饭') {                                  // 饭：吞噬回血
+      var h2 = Math.min(z.hpMax - z.hp, 45);
+      z.hp += h2;
+      fx.dmgNums.push({ x: z.x, y: z.y - z.dispH - 40, txt: '+' + h2, t: 1, color: '#9ce89c' });
+      S.heal();
     }
   }
   function drawBossSpells(dt) {
@@ -515,6 +605,16 @@ window.ZCITY = window.ZCITY || {};
     }
   }
 
+  /* 光明词治疗（『爱』等 heal 系法术） */
+  function healSelf(amount, ch, sp) {
+    hero.hp = Math.min(hero.hpMax, hero.hp + amount);
+    hero.spellPoseT = 0.4;
+    fx.dmgNums.push({ x: hero.x, y: hero.y - 116, txt: ch + ' +' + amount, t: 1, color: sp.color });
+    burst(hero.x - camera.x, hero.y - 60, sp.color, 16);
+    S.heal(); S.magic();
+    fx.combo++; fx.comboT = 2.5; fx.comboPop = 1;
+  }
+
   /* ---------- 场景切换 ---------- */
   function enterScene(id, backX, viaDoor) {
     scene = SCENES[id];
@@ -529,8 +629,9 @@ window.ZCITY = window.ZCITY || {};
     } else {
       enc.zones = scene.zones;
       enc.phase = 'calm'; enc.zoneIdx = 0; enc.waveIdx = 0; enc.allClear = false;
-      // 重置医院 Boss 门（每轮重新挑战）
+      // 重置医院/厨房 Boss 门（每轮重新挑战）
       if (scene.bossDoor) {
+        scene.bossDoor.locked = true;
         scene.doors = scene.doors.filter(function (d) { return d !== scene.bossDoor; });
       }
     }
@@ -538,11 +639,14 @@ window.ZCITY = window.ZCITY || {};
     hero.y = (bandTop() + bandBot()) / 2;
     camera.x = clamp(hero.x - view.w * 0.38, 0, Math.max(0, scene.worldW - view.w));
     makeItems();
+    if (SP && SP.setPool) SP.setPool((scene.id === 'dining' || scene.id === 'kitchen') ? 'chapter1' : 'street');
     nearDoor = null;
     document.getElementById('enterBtn').style.display = 'none';
     if (hud.scene) hud.scene.textContent = scene.name;
     if (id === 'store') showToast('🏪 击退店员僵尸后可搜刮补给', 2000);
     if (id === 'hospital') showToast('🏥 院内有效尸化医护，小心', 2000);
+    if (id === 'dining') showToast('🍽 第一章·暴食：僵尸吃撑了这里……', 2400);
+    if (id === 'kitchen') showToast('🔥 厨房深处，暴食之主在等你', 2400);
   }
   function startTransition(cb) {
     if (trans.phase !== 0) return;
@@ -671,6 +775,110 @@ window.ZCITY = window.ZCITY || {};
     }
     for (var gy = view.groundY + 18; gy < view.h; gy += 26) {
       ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(view.w, gy); ctx.stroke();
+    }
+  }
+  function drawDiningBg(camX) {
+    var wall = ctx.createLinearGradient(0, 0, 0, view.groundY);
+    wall.addColorStop(0, '#2a2028'); wall.addColorStop(1, '#40303a');
+    ctx.fillStyle = wall;
+    ctx.fillRect(0, 0, view.w, view.groundY);
+    for (var s = 150; s < scene.worldW; s += 280) {
+      var sx = s - camX;
+      if (sx < -220 || sx > view.w + 220) continue;
+      // 圆餐桌+桌布
+      ctx.fillStyle = '#d8c8d0';
+      ctx.beginPath(); ctx.ellipse(sx, view.groundY - 40, 66, 18, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#7a5a6a';
+      ctx.beginPath(); ctx.ellipse(sx, view.groundY - 36, 58, 14, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#c9a86a'; ctx.fillRect(sx - 5, view.groundY - 36, 10, 36);   // 桌腿
+      // 餐具
+      ctx.fillStyle = '#e8e8f0';
+      ctx.beginPath(); ctx.arc(sx - 20, view.groundY - 44, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.fillRect(sx + 10, view.groundY - 50, 3, 12); ctx.fillRect(sx + 20, view.groundY - 50, 3, 12);
+      // 吊灯
+      if (s % 560 === 150) {
+        ctx.strokeStyle = '#8a7a8a'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(sx, view.groundY - 260); ctx.lineTo(sx, view.groundY - 210); ctx.stroke();
+        ctx.fillStyle = 'rgba(255,220,140,0.9)';
+        ctx.beginPath(); ctx.moveTo(sx - 20, view.groundY - 210); ctx.lineTo(sx + 20, view.groundY - 210);
+        ctx.lineTo(sx + 10, view.groundY - 186); ctx.lineTo(sx - 10, view.groundY - 186); ctx.closePath(); ctx.fill();
+      }
+    }
+    // 自助餐台（ Buffet 词汇牌）
+    var bx2 = 480 - camX;
+    if (bx2 > -120 && bx2 < view.w + 120) {
+      ctx.fillStyle = '#5a4a3a'; ctx.fillRect(bx2 - 70, view.groundY - 56, 140, 56);
+      ctx.fillStyle = '#c9a86a'; ctx.fillRect(bx2 - 74, view.groundY - 62, 148, 10);
+      ctx.fillStyle = '#8a5a2a'; ctx.fillRect(bx2 - 40, view.groundY - 86, 80, 26);
+      ctx.fillStyle = '#ffe28a'; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'center';
+      ctx.fillText('BUFFET 餐台', bx2, view.groundY - 69);
+    }
+    // 地板
+    ctx.fillStyle = '#4a3a40';
+    ctx.fillRect(0, view.groundY, view.w, view.h - view.groundY);
+    ctx.strokeStyle = 'rgba(220,190,200,0.12)'; ctx.lineWidth = 1;
+    var tile = 50, oy = (camX % tile);
+    for (var gx = -oy; gx < view.w; gx += tile) {
+      ctx.beginPath(); ctx.moveTo(gx, view.groundY); ctx.lineTo(gx - 28, view.h); ctx.stroke();
+    }
+    for (var gy = view.groundY + 20; gy < view.h; gy += 27) {
+      ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(view.w, gy); ctx.stroke();
+    }
+  }
+  function drawKitchenBg(camX) {
+    var wall = ctx.createLinearGradient(0, 0, 0, view.groundY);
+    wall.addColorStop(0, '#242a24'); wall.addColorStop(1, '#38443a');
+    ctx.fillStyle = wall;
+    ctx.fillRect(0, 0, view.w, view.groundY);
+    // 白瓷砖墙
+    ctx.strokeStyle = 'rgba(200,220,200,0.15)'; ctx.lineWidth = 1;
+    for (var ty = 40; ty < view.groundY - 80; ty += 44) {
+      ctx.beginPath(); ctx.moveTo(0, ty); ctx.lineTo(view.w, ty); ctx.stroke();
+    }
+    for (var s = 170; s < scene.worldW; s += 300) {
+      var sx = s - camX;
+      if (sx < -220 || sx > view.w + 220) continue;
+      // 灶台+火
+      ctx.fillStyle = '#4a4a52'; ctx.fillRect(sx - 70, view.groundY - 64, 140, 64);
+      ctx.fillStyle = '#2a2a30'; ctx.fillRect(sx - 58, view.groundY - 58, 44, 40);
+      ctx.fillRect(sx + 12, view.groundY - 58, 44, 40);
+      var fl = 0.6 + 0.4 * Math.sin(performance.now() / 130 + s);
+      ctx.fillStyle = 'rgba(255,140,60,' + (0.75 * fl) + ')';
+      ctx.beginPath(); ctx.arc(sx - 36, view.groundY - 56, 9 + 4 * fl, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(sx + 34, view.groundY - 56, 9 + 4 * fl, 0, Math.PI * 2); ctx.fill();
+      // 大锅
+      if (s % 600 === 170) {
+        ctx.fillStyle = '#3a3a42';
+        ctx.beginPath(); ctx.arc(sx + 90, view.groundY - 40, 34, Math.PI, 0); ctx.fill();
+        ctx.fillStyle = 'rgba(240,220,180,0.85)';
+        ctx.fillRect(sx + 58, view.groundY - 44, 64, 6);
+        ctx.fillStyle = '#8a5a2a'; ctx.fillRect(sx + 60, view.groundY - 78, 76, 22);
+        ctx.fillStyle = '#ffe28a'; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'center';
+        ctx.fillText('SOUP 汤', sx + 98, view.groundY - 63);
+      }
+      // 案板
+      if (s % 600 === 470) {
+        ctx.fillStyle = '#c9a86a'; ctx.fillRect(sx - 60, view.groundY - 92, 120, 12);
+        ctx.fillStyle = '#e8e8f0';
+        ctx.beginPath(); ctx.moveTo(sx - 30, view.groundY - 92); ctx.lineTo(sx - 22, view.groundY - 116); ctx.lineTo(sx - 14, view.groundY - 92); ctx.closePath(); ctx.fill();
+      }
+    }
+    // 排风扇
+    ctx.fillStyle = '#2e362e';
+    for (var v = 100; v < scene.worldW; v += 420) {
+      var vx = v - camX;
+      if (vx > -40 && vx < view.w + 40) { ctx.beginPath(); ctx.arc(vx, 70, 26, 0, Math.PI * 2); ctx.fill(); }
+    }
+    // 地板（防滑格）
+    ctx.fillStyle = '#3a4038';
+    ctx.fillRect(0, view.groundY, view.w, view.h - view.groundY);
+    ctx.strokeStyle = 'rgba(180,200,180,0.15)';
+    var tile2 = 44, oy2 = (camX % tile2);
+    for (var gx2 = -oy2; gx2 < view.w; gx2 += tile2) {
+      ctx.beginPath(); ctx.moveTo(gx2, view.groundY); ctx.lineTo(gx2 - 24, view.h); ctx.stroke();
+    }
+    for (var gy2 = view.groundY + 20; gy2 < view.h; gy2 += 25) {
+      ctx.beginPath(); ctx.moveTo(0, gy2); ctx.lineTo(view.w, gy2); ctx.stroke();
     }
   }
   function drawDoor(d) {
@@ -833,22 +1041,24 @@ window.ZCITY = window.ZCITY || {};
     }
     // Boss 喊词气泡
     if (z.shout) {
+      var wi = SP.wordInfo ? SP.wordInfo(z.shout) : null;
+      var wColor = wi ? wi.color : '#ffd873';
       ctx.save();
       var bbW = 64, bbH = 46;
       var bbX = x - bbW / 2, bbY = z.y - z.dispH - 92;
       ctx.fillStyle = 'rgba(20,10,14,0.88)';
       if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(bbX, bbY, bbW, bbH, 10); ctx.fill(); }
       else ctx.fillRect(bbX, bbY, bbW, bbH);
-      ctx.strokeStyle = SP.SPELLS[z.shout].color; ctx.lineWidth = 2;
+      ctx.strokeStyle = wColor; ctx.lineWidth = 2;
       if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(bbX, bbY, bbW, bbH, 10); ctx.stroke(); }
       else ctx.strokeRect(bbX, bbY, bbW, bbH);
       ctx.font = 'bold 30px "Microsoft YaHei", sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = SP.SPELLS[z.shout].color;
+      ctx.fillStyle = wColor;
       ctx.fillText(z.shout, x, bbY + 22);
       ctx.font = '10px monospace';
       ctx.fillStyle = '#fff';
-      ctx.fillText('BOSS CAST', x, bbY + bbH - 8);
+      ctx.fillText(wi ? wi.en.toUpperCase() + '!' : 'BOSS CAST', x, bbY + bbH - 8);
       ctx.restore();
     }
     // 弱点字符牌（字 + 英文释义）
@@ -954,17 +1164,19 @@ window.ZCITY = window.ZCITY || {};
       if (c.delay > 0) { c.delay -= dt; continue; }
       c.t += dt / c.dur;
       var t = Math.min(1, c.t);
-      var mx = (c.sx + tcx) / 2 + c.cx;
-      var my = Math.min(c.sy, tcy) - c.arc;
-      var x = (1 - t) * (1 - t) * c.sx + 2 * (1 - t) * t * mx + t * t * tcx;
-      var y = (1 - t) * (1 - t) * c.sy + 2 * (1 - t) * t * my + t * t * tcy;
+      var tcx2 = tcx, tcy2 = tcy;
+      if (c.backTo) { tcx2 = c.backTo.x - camera.x; tcy2 = c.backTo.y - c.backTo.dispH * 0.6; }  // 被吃：飞向Boss
+      var mx = (c.sx + tcx2) / 2 + c.cx;
+      var my = Math.min(c.sy, tcy2) - c.arc;
+      var x = (1 - t) * (1 - t) * c.sx + 2 * (1 - t) * t * mx + t * t * tcx2;
+      var y = (1 - t) * (1 - t) * c.sy + 2 * (1 - t) * t * my + t * t * tcy2;
       ctx.save();
       ctx.translate(x, y);
       ctx.scale(Math.abs(Math.cos(t * 9)) * 0.7 + 0.3, 1);
       ctx.fillStyle = '#ffd873'; ctx.strokeStyle = '#a87818'; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       ctx.restore();
-      if (t >= 1) { fx.coins.splice(c2, 1); coinsCount++; coinPop = 0.3; S.coin(); }
+      if (t >= 1) { fx.coins.splice(c2, 1); if (!c.backTo) { coinsCount++; coinPop = 0.3; S.coin(); } }
     }
     for (var d = fx.dmgNums.length - 1; d >= 0; d--) {
       var n = fx.dmgNums[d];
@@ -1024,6 +1236,11 @@ window.ZCITY = window.ZCITY || {};
     var w = document.getElementById('weaponChip');
     if (w) w.style.display = hero.weapon ? 'flex' : 'none';
     if (hero.weapon && w) w.textContent = '🗡 ' + hero.weapon.ch + ' +' + hero.weapon.bonus;
+    var kc = document.getElementById('karmaChip');
+    if (kc) {
+      var k = SP && SP.karma ? SP.karma() : { light: 0 };
+      kc.textContent = '💛 ' + k.light;
+    }
   }
 
   /* ---------- 主循环 ---------- */
@@ -1068,12 +1285,12 @@ window.ZCITY = window.ZCITY || {};
         if (z.hurtT > 0) z.hurtT -= rdt;
         if (Math.abs(z.kb) > 4) { z.x += z.kb * dt; z.kb *= Math.max(0, 1 - 7 * dt); }
         var dx = hero.x - z.x, dy = hero.y - z.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
-        z.close = d < (z.type === 'BOSS' ? 74 : 46);
-        if (z.type === 'BOSS') bossTick(z, dt);
+        z.close = d < (isBossT(z.type) ? 74 : 46);
+        if (isBossT(z.type)) bossTick(z, dt);
         if (z.entering) {
           var inX = camera.x + view.w * (z.x > camera.x + view.w / 2 ? 0.86 : 0.14);
           var edx = inX - z.x;
-          z.x += Math.sign(edx) * z.speed * 1.15 * dt;
+          z.x += Math.sign(edx) * z.speed * (isBossT(z.type) ? 2.8 : 1.15) * dt;   // Boss入场加速演出
           z.phase += dt * 7;
           if (Math.abs(edx) < 24 || d < 90) z.entering = false;
           continue;
@@ -1100,7 +1317,7 @@ window.ZCITY = window.ZCITY || {};
           z.y += dy / d * z.speed * dt * 0.5;
           z.y = clamp(z.y, bandTop(), bandBot());
           z.phase += dt * 7;
-        } else if (d < (z.type === 'BOSS' ? 60 : 30)) {
+        } else if (d < (isBossT(z.type) ? 60 : 30)) {
           z.x -= dx / d * 26 * dt;
           z.y -= dy / d * 26 * dt * 0.5;
           z.y = clamp(z.y, bandTop(), bandBot());
@@ -1156,6 +1373,8 @@ window.ZCITY = window.ZCITY || {};
     ctx.save();
     ctx.translate(shx, shy);
     if (scene.id === 'hospital') drawHospitalBg(camera.x);
+    else if (scene.id === 'dining') drawDiningBg(camera.x);
+    else if (scene.id === 'kitchen') drawKitchenBg(camera.x);
     else if (scene.indoor) drawStoreBg(camera.x);
     else drawStreetBg(camera.x);
     drawBarricades();
@@ -1252,11 +1471,21 @@ window.ZCITY = window.ZCITY || {};
     A.tintEntry('zombie.A_attack', 'zombie.CLR_attack', '#8ad08a', 0.45);
     A.tintEntry('zombie.C_walk', 'zombie.BOSS_walk', '#e8eef2', 0.55);
     A.tintEntry('zombie.C_attack', 'zombie.BOSS_attack', '#e8eef2', 0.55);
+    // 第一章·暴食厨系变体：厨工白帽/服务员红/厨师白/暴食Boss土黄
+    A.tintEntry('zombie.A_walk', 'zombie.CHEF_walk', '#f0ede4', 0.5);
+    A.tintEntry('zombie.A_attack', 'zombie.CHEF_attack', '#f0ede4', 0.5);
+    A.tintEntry('zombie.B_walk', 'zombie.WAIT_walk', '#e86a5a', 0.5);
+    A.tintEntry('zombie.B_attack', 'zombie.WAIT_attack', '#e86a5a', 0.5);
+    A.tintEntry('zombie.C_walk', 'zombie.COOK_walk', '#f0ede4', 0.55);
+    A.tintEntry('zombie.C_attack', 'zombie.COOK_attack', '#f0ede4', 0.55);
+    A.tintEntry('zombie.C_walk', 'zombie.GLUT_walk', '#d8a850', 0.6);
+    A.tintEntry('zombie.C_attack', 'zombie.GLUT_attack', '#d8a850', 0.6);
     if (SP) SP.init({
       get hero() { return hero; },
       get zombies() { return zombies; },
       locked: function () { return defeated || trans.phase !== 0 || scene.indoor || SP.locked(); },
-      canCast: function () { return !defeated && trans.phase === 0 && !scene.indoor; },
+      canCast: function () { return !defeated && trans.phase === 0; },
+      healSelf: healSelf,
       toast: showToast,
       banner: banner,
       spellStrike: spellStrike

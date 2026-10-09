@@ -8,25 +8,55 @@ window.ZCITY = window.ZCITY || {};
 (function () {
   'use strict';
 
-  /* ---------- 法术表（字全部在 hanzi_data.js 笔顺库内） ---------- */
+  /* ---------- 法术表（字全部在 hanzi_data.js 笔顺库内；alignment 供终局恶意值判定） ---------- */
   var SPELLS = {
-    '火': { py: 'huǒ',  pyPlain: 'huo',  en: 'fire',     color: '#ff7a3c', kind: 'fire',  dmg: 45 },
-    '水': { py: 'shuǐ', pyPlain: 'shui', en: 'water',    color: '#7ec8ff', kind: 'water', dmg: 45 },
-    '石': { py: 'shí',  pyPlain: 'shi',  en: 'stone',    color: '#c9c2b8', kind: 'stone', dmg: 45 },
-    '山': { py: 'shān', pyPlain: 'shan', en: 'mountain', color: '#a8905c', kind: 'rock',  dmg: 55 }
+    /* 中性元素（序章·街道） */
+    '火': { py: 'huǒ',  pyPlain: 'huo',  en: 'fire',     color: '#ff7a3c', kind: 'fire',  dmg: 45, align: 'n' },
+    '水': { py: 'shuǐ', pyPlain: 'shui', en: 'water',    color: '#7ec8ff', kind: 'water', dmg: 45, align: 'n' },
+    '石': { py: 'shí',  pyPlain: 'shi',  en: 'stone',    color: '#c9c2b8', kind: 'stone', dmg: 45, align: 'n' },
+    '山': { py: 'shān', pyPlain: 'shan', en: 'mountain', color: '#a8905c', kind: 'rock',  dmg: 55, align: 'n' },
+    /* 第一章·暴食（食堂/厨房词汇） */
+    '米': { py: 'mǐ',   pyPlain: 'mi',   en: 'rice',     color: '#f5eeda', kind: 'rice',  dmg: 42, align: 'n' },
+    '面': { py: 'miàn', pyPlain: 'mian', en: 'noodles',  color: '#e8d890', kind: 'noodle',dmg: 48, align: 'n' },
+    '肉': { py: 'ròu',  pyPlain: 'rou',  en: 'meat',     color: '#e88a7a', kind: 'meat',  dmg: 52, align: 'n' },
+    '菜': { py: 'cài',  pyPlain: 'cai',  en: 'vegetable',color: '#8ad08a', kind: 'vege',  dmg: 40, align: 'n' },
+    '汤': { py: 'tāng', pyPlain: 'tang', en: 'soup',     color: '#f0c890', kind: 'soup',  dmg: 44, align: 'n' },
+    '甜': { py: 'tián', pyPlain: 'tian', en: 'sweet',    color: '#ffa8d8', kind: 'sweet', dmg: 38, align: 'n' },
+    /* 光明系（终局对黑影唯一有效；爱=治疗） */
+    '勇': { py: 'yǒng', pyPlain: 'yong', en: 'brave',    color: '#ffd873', kind: 'brave', dmg: 50, align: 'l' },
+    '光': { py: 'guāng',pyPlain: 'guang',en: 'light',    color: '#fffbe0', kind: 'holy',  dmg: 60, align: 'l' },
+    '爱': { py: 'ài',   pyPlain: 'ai',   en: 'love',     color: '#ff9cc8', kind: 'love',  dmg: 0,  heal: 35, align: 'l' }
   };
   var SPELL_KEYS = Object.keys(SPELLS);
-  var PINYIN_POOL = ['huǒ', 'shuǐ', 'shí', 'shān', 'tǔ', 'tiān', 'yuè', 'rì', 'mù', 'kǒu', 'shǒu', 'shān'];
+  /* Boss 喊词专用词数据（玩家不可施放·恶意系） */
+  var BOSS_WORDS = {
+    '吃': { py: 'chī', en: 'eat',   color: '#e88a5a' },
+    '大': { py: 'dà',  en: 'big',   color: '#ffb02e' },
+    '饭': { py: 'fàn', en: 'rice',  color: '#ffd873' }
+  };
+  /* 各章节启用词池（序章/第一章），终局章解锁光明词为主 */
+  var CHAPTER_POOLS = {
+    street: ['火', '水', '石', '山'],
+    chapter1: ['火', '水', '石', '山', '米', '面', '肉', '菜', '汤', '甜']
+  };
+  var activePool = CHAPTER_POOLS.street.slice();
+  var PINYIN_POOL = ['huǒ', 'shuǐ', 'shí', 'shān', 'mǐ', 'miàn', 'ròu', 'cài', 'tāng', 'tián',
+                     'yǒng', 'guāng', 'ài', 'yào', 'bàng', 'fàn', 'tǔ', 'tiān', 'yuè', 'kǒu'];
 
   var WINDOW_T = 6;          // 双倍组合窗口（秒）
   var castLock = 0;          // 施法冷却
   var learned = {};          // 本次会话已学字（学习卡只弹第一次）
+  /* 善恶使用统计（终局"黑暗人性之渊"判定数据源） */
+  var karma = { light: 0, dark: 0, neutral: 0 };
 
   var E = null;              // 引擎引用（注入）
 
   function init(engine) { E = engine; }
 
-  function pickSpellKey() { return SPELL_KEYS[Math.floor(Math.random() * SPELL_KEYS.length)]; }
+  function pickSpellKey() { return activePool[Math.floor(Math.random() * activePool.length)]; }
+  function setPool(name) {
+    activePool = (CHAPTER_POOLS[name] || CHAPTER_POOLS.street).slice();
+  }
 
   /* 找目标：同字僵尸中最近者；无同字 → 最近僵尸（错属性减半）。入场中也可先手打击 */
   function findTarget(ch) {
@@ -48,6 +78,17 @@ window.ZCITY = window.ZCITY || {};
     if (!E || !E.canCast()) { return; }
     var sp = SPELLS[ch];
     if (!sp) return;
+    /* 光明词『爱』= 自我治疗（无需目标） */
+    if (sp.heal && !sp.dmg) {
+      E.healSelf(sp.heal, ch, sp);
+      if (action === 'voice') castLock = 1.0;
+      if (!learned[ch]) { learned[ch] = true; setTimeout(function () { showLearnCard(ch, sp); }, 650); }
+      return;
+    }
+    /* 善恶统计（终局黑暗渊判定数据源） */
+    if (sp.align === 'l') karma.light++;
+    else if (sp.align === 'd') karma.dark++;
+    else karma.neutral++;
     var t = findTarget(ch);
     if (!t) { E.toast('附近没有僵尸'); return; }
     var z = t.z;
@@ -130,14 +171,19 @@ window.ZCITY = window.ZCITY || {};
 
   ZCITY.Spells = {
     SPELLS: SPELLS,
+    BOSS_WORDS: BOSS_WORDS,
+    wordInfo: function (ch) { return SPELLS[ch] || BOSS_WORDS[ch] || null; },
     init: init,
     pickSpellKey: pickSpellKey,
+    setPool: setPool,
+    karma: function () { return { light: karma.light, dark: karma.dark, neutral: karma.neutral }; },
     tick: tick,
     onVoiceHit: onVoiceHit,
     onRuneHit: onRuneHit,
     fieldChars: fieldChars,
     pendingDouble: pendingDouble,
     locked: function () { return castLock > 0; },
+    healSelf: function () { },                                        // 引擎注入覆盖
     showLearnCard: showLearnCard,
     speak: speak,
     /* 测试钩子 */
